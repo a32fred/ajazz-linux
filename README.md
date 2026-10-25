@@ -2,17 +2,19 @@
 
 <img src="src/vela/assets/vela.svg" alt="Vela sail logo" width="72">
 
+[![Linux CI](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml/badge.svg)](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml)
+
 **Independent AJ199 configuration utility - early development preview.**
 
 [Linux setup](#install-and-launch) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Changelog](CHANGELOG.md) | [MIT license](LICENSE)
 
 An independent, native Qt Widgets controller for the AJ199 mouse, with original Vela sail branding. Four pages cover sensitivity, six button assignments, lighting, and a local macro library. No browser, online fonts, or vendor application is required.
 
-Python 3.10+ is supported by the source. Install a Python version and architecture for which PySide6 and HIDAPI provide wheels. Development verification used Windows, Python 3.14 and PySide6 6.12; Linux execution and physical mouse writes have **not** been validated. Demo mode uses an in-memory transport with the same report codecs and service as real connections.
+Python 3.10+ is supported by the source. Install a Python version and architecture for which PySide6 and HIDAPI provide wheels. Development verification used Windows, Python 3.14 and PySide6 6.12; Headless Ubuntu 24.04 CI has passed with Python 3.10 and 3.13. Live desktop sessions, USB permissions and physical mouse writes have **not** been validated. Demo mode uses an in-memory transport with the same report codecs and service as real connections.
 
-![Vela demo on Windows, showing sensitivity controls](docs/images/vela-demo.png)
+![Vela demo rendered on Ubuntu 24.04 CI, showing sensitivity controls](docs/images/vela-linux-demo.png)
 
-The screenshot is a native Windows demo render, not evidence of Linux or real-device validation. The latest recorded checks are **97 passing tests** on Windows; see [validation evidence](docs/VALIDATION.md). Linux CI is configured but has not been run here.
+The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical device. **97 tests passed** on Windows and on each Linux CI job (Python 3.10 and 3.13), including builds and demo rendering. See [the passing Linux run](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815) and [validation evidence](docs/VALIDATION.md).
 
 ## Install and launch
 
@@ -107,7 +109,7 @@ QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -v
 python -m build
 ```
 
-Tests use fake HID APIs and the simulator; they do not enumerate, open or write physical devices. Linux CI is configured to run the tests and build wheels/source distributions; the workflow's presence is not a claim that hosted CI ran. Protocol correctness is checked with specification-derived vectors and readback simulation. Actual hardware writes/playback, Linux permissions and runtime behavior need separate hands-on validation.
+Tests use fake HID APIs and the simulator; they do not enumerate, open or write physical devices. Linux CI has [passed on Ubuntu 24.04 with Python 3.10 and 3.13](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815), including offscreen widget tests, builds, demo CLI and rendering. Protocol correctness is checked with specification-derived vectors and readback simulation. Actual hardware writes/playback, Linux permissions and live desktop behavior need separate hands-on validation.
 
 All GUI service work runs on one queued worker; shutdown waits for the current transaction, closes its handle and ends the thread without blocking the GUI. HIDAPI `send_feature_report` has no configurable OS timeout. An indefinitely stalled native driver call cannot be safely interrupted; shutdown may wait indefinitely in that case. Vela never force-terminates a thread.
 
