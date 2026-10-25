@@ -1,5 +1,7 @@
 # Vela Mouse Studio
 
+**[Portugu?s: instala??o passo a passo](README.pt-BR.md)**
+
 <img src="src/vela/assets/vela.svg" alt="Vela sail logo" width="72">
 
 [![Linux CI](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml/badge.svg)](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml)
@@ -18,29 +20,92 @@ The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical d
 
 ## Install and launch
 
-On Linux, clone the public repository and install the checked-out source using the commands below. If you already extracted a source archive or checked out the repository, skip the first two commands and start in its root. No package-index release is assumed:
+There is no RPM, Flatpak or one-click installer yet. Install from this repository using the steps below. You do not need a GitHub account or a developer setup.
+
+### Fedora Workstation / KDE: start here
+
+Open **Terminal** and run each numbered block in order. This recipe targets Fedora installations with `dnf`; Atomic desktops such as Silverblue/Kinoite need a different setup. Fedora installation and real USB access have not yet been tested hands-on; the automated Linux checks currently use Ubuntu.
+
+**1. Install the prerequisites (once).** Enter your login password if asked; the terminal does not display password characters. Confirm DNF's package list when prompted.
 
 ```sh
+sudo dnf install git python3 python3-pip \
+  libglvnd-egl libglvnd-glx libxkbcommon-x11 \
+  xcb-util-cursor xcb-util-wm xcb-util-keysyms
+```
+
+**2. Download and install Vela.** This creates a `vela-mouse-studio` folder inside your home directory. Keep that folder: the launcher uses the Python environment stored inside it. The dependency download can take a few minutes.
+
+```sh
+cd "$HOME"
 git clone https://github.com/a32fred/vela-mouse-studio.git
 cd vela-mouse-studio
 python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e .
-sh ./run-vela --demo
-# Real mode: scans only when you click Scan; never substitutes demo.
-sh ./run-vela
 ```
 
-On Windows (PowerShell):
+If you already downloaded the repository, skip `git clone` and enter its existing folder instead. If a command fails, stop there and read [Troubleshooting](#installation-troubleshooting); do not continue with an incomplete installation.
+
+**3. Open the demonstration first.** No mouse connection or USB permission setup is needed. A Vela window with a **DEMO MODE** badge should open.
+
+```sh
+sh "$HOME/vela-mouse-studio/run-vela" --demo
+```
+
+**4. Use your actual mouse.** Close the demo. Install the supplied USB access rule once:
+
+```sh
+cd "$HOME/vela-mouse-studio"
+sudo install -m 644 packaging/linux/70-vela.rules /etc/udev/rules.d/70-vela.rules
+sudo udevadm control --reload-rules
+```
+
+Unplug and reconnect the mouse's USB cable. Then open real mode:
+
+```sh
+sh "$HOME/vela-mouse-studio/run-vela"
+```
+
+Inside Vela, click **Scan**, select the AJ199, then click **Read mouse**. These actions read settings; only **Apply to mouse** writes your changes. Run Vela as your normal desktop user, not with `sudo`. Hardware writes are still experimentally unvalidated.
+
+**Open it again later:** use the same `sh "$HOME/vela-mouse-studio/run-vela"` command from any terminal. For an application-menu shortcut, follow [Desktop shortcut](#desktop-shortcut-optional). For demo mode, add `--demo`.
+
+**Update an existing installation:** close Vela, then run:
+
+```sh
+cd "$HOME/vela-mouse-studio"
+git pull --ff-only
+.venv/bin/python -m pip install -e .
+```
+
+### Other Linux distributions
+
+Install Git, Python 3.10+ with `venv`/pip, and the Qt runtime libraries through your distribution's package manager. Package names differ; do not run Fedora's `dnf` command on another distribution. Then follow Fedora steps 2?4 above, which use the same repository and launcher. If you extracted a source archive, enter its folder instead of cloning and adjust the launcher path accordingly. PySide6/HIDAPI must provide compatible binaries for your Python version and architecture.
+
+### Windows preview
+
+From the downloaded repository in PowerShell:
 
 ```powershell
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .
 .\run-vela.cmd --demo
-# Or directly:
-.venv\Scripts\python.exe -m vela --demo
 ```
 
-The installed `vela` console command also launches the GUI. Linux desktops need their normal Qt platform dependencies (for example EGL/OpenGL and XCB libraries on X11). Wayland and distro-specific Qt setup depend on the environment. No privileged setup runs during installation or launch.
+### Installation troubleshooting
+
+| What you see | What to do |
+|---|---|
+| `git: command not found`, `python3: command not found`, or no `pip` | Complete step 1 before continuing. |
+| `destination path ... already exists` | Use `cd "$HOME/vela-mouse-studio"`; do not clone again into the same location. |
+| `No matching distribution found` / unsupported Python or architecture | Run `python3 --version` and check that PySide6/HIDAPI support that interpreter/architecture. Report the complete error using the bug template; do not replace the system Python. |
+| Missing `.venv/bin/python`, `No module named vela`, or launcher asks you to install first | Complete step 2 successfully, in the repository folder. |
+| Qt reports `xcb` / a missing shared library | Complete the Fedora runtime package installation in step 1. If it still fails, include the exact missing library in a bug report. |
+| Demo opens but real mode reports permission denied | Complete step 4 and physically reconnect the cable in your active desktop session. Do not run the GUI as root. |
+| Scan finds no supported device | Check the cable and connection. The supplied rules match USB IDs `25a7:fa7b` and `25a7:fa7c`; other IDs are unconfirmed. |
+
+[Fedora Python/pip guidance](https://developer.fedoraproject.org/tech/languages/python/pypi-installation.html) ? [Fedora EGL package](https://packages.fedoraproject.org/pkgs/libglvnd/libglvnd-egl/) ? [Fedora XCB cursor package](https://packages.fedoraproject.org/pkgs/xcb-util-cursor/)
 
 ## Use
 
@@ -85,6 +150,8 @@ sudo udevadm control --reload-rules
 ```
 
 On machines without an active logind/seat session, your administrator may need a distro-appropriate group policy. Do not run the GUI as root to work around permissions. Access failure is reported by Scan/Read mouse.
+
+### Desktop shortcut (optional)
 
 For a per-user launcher, from the repository root:
 
