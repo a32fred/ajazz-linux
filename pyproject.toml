@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vela-mouse-studio"
+version = "0.1.0"
+description = "Independent native AJ199 mouse configuration utility"
+keywords = ["mouse", "hid", "aj199", "qt", "linux"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+requires-python = ">=3.10"
+dependencies = ["PySide6-Essentials>=6.8,<7", "hidapi>=0.14,<1"]
+
+[project.urls]
+Repository = "https://github.com/a32fred/vela-mouse-studio"
+Issues = "https://github.com/a32fred/vela-mouse-studio/issues"
+
+[project.scripts]
+vela = "vela.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vela = ["assets/*"]
+
+[tool.setuptools.data-files]
+"share/applications" = ["packaging/linux/vela.desktop"]
+"share/icons/hicolor/scalable/apps" = ["src/vela/assets/vela.svg"]
+"share/doc/vela" = ["packaging/linux/70-vela.rules", "THIRD_PARTY_NOTICES.md"]

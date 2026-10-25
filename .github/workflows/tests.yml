@@ -1,0 +1,37 @@
+name: Linux tests and distribution
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.13']
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Qt runtime dependencies
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libxcb-cursor0
+      - name: Install project and build frontend
+        run: python -m pip install -e . build
+      - name: Run simulator and native widget tests
+        run: python -m unittest discover -s tests -v
+      - name: Build source and wheel distributions
+        run: python -m build
+      - name: Read-only demo CLI
+        run: python -m vela --cli status --demo
+      - name: Render native demo
+        run: python -m vela --demo --workspace artifacts/preview-workspace --screenshot artifacts/vela.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vela-${{ matrix.python-version }}
+          path: |
+            dist/*
+            artifacts/vela.png

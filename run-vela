@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+vela_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ ! -x "$vela_root/.venv/bin/python" ]; then
+    printf '%s\n' 'Create .venv and install this project first. See README.md.' >&2
+    exit 1
+fi
+exec "$vela_root/.venv/bin/python" -m vela "$@"

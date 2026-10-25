@@ -1,0 +1,8 @@
+include README.md LICENSE THIRD_PARTY_NOTICES.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md CHANGELOG.md run-vela run-vela.cmd
+recursive-include packaging *.rules *.desktop
+recursive-include docs *.md *.png
+recursive-include tests *.py
+prune .superdesign
+prune .superpowers
+prune docs/superpowers
+exclude docs/IMPLEMENTATION_DECISIONS.md docs/OPEN_SOURCE_READINESS.md

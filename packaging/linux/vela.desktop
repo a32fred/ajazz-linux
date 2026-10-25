@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Vela Mouse Studio
+Comment=Configure compatible AJ199 mouse settings
+Exec=vela
+Icon=vela
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=mouse;DPI;AJ199;macro;
+StartupNotify=true
