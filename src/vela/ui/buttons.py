@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QDialog, QDialogButtonBox, QLineEdit, QCheckBox)
 from ..domain import Binding, ValidationError
 from ..protocol import DIRECT_ACTIONS, CONSUMER_USAGES, encode_combination
-from .keys import hid_key
+from .keys import hid_key, key_name
 from .widgets import card, button, label, combo, row
 
 
@@ -15,7 +15,7 @@ def binding_text(binding, macros):
         return 'Macro · ' + (macro.name if macro else 'Unavailable')
     if binding.action == 'keyboard':
         mods = [name for mask, name in ((1, 'Ctrl'), (2, 'Shift'), (4, 'Alt'), (8, 'Super')) if binding.modifiers & mask]
-        return ' + '.join(mods + [f'HID {key:02X}' for key in binding.keys]) or 'Keyboard combination'
+        return ' + '.join(mods + [key_name(key) for key in binding.keys]) or 'Keyboard combination'
     if binding.action.startswith('consumer:'):
         return next((name for name, usage in CONSUMER_USAGES.items() if binding.action == f'consumer:{usage:04x}'), binding.action)
     if binding.action.startswith(('unknown:', 'legacy:')):
@@ -24,26 +24,43 @@ def binding_text(binding, macros):
 
 
 class MouseDiagram(QWidget):
+    selected = Signal(int)
+
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(180, 260)
+        self.setMinimumSize(160, 250)
         self.setAccessibleName('Mouse diagram. Buttons: 1 left, 2 right, 3 wheel, 4 back, 5 forward, 6 DPI.')
+        self.controls = []
+        for index, name in enumerate(('Left click', 'Right click', 'Wheel click', 'Back', 'Forward', 'DPI button')):
+            control = button(str(index + 1), lambda checked=False, i=index: self.selected.emit(i))
+            control.setParent(self)
+            control.setAccessibleName(f'Assign {name} on mouse diagram')
+            control.setToolTip(f'{name}: choose assignment')
+            control.setCursor(Qt.CursorShape.PointingHandCursor)
+            control.setStyleSheet('QPushButton { background: transparent; border: 1px solid transparent; padding: 0; min-height: 0; } '
+                                  'QPushButton:hover, QPushButton:focus { background: #143A34; border: 1px solid #3CCFB0; }')
+            self.controls.append(control)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        x, y = self.width() // 2 - 80, self.height() // 2 - 120
+        for control, (left, top, width, height) in zip(self.controls, (
+                (28, 15, 40, 70), (94, 15, 40, 70), (68, 28, 24, 38),
+                (12, 135, 28, 26), (12, 105, 28, 26), (68, 109, 24, 28))):
+            control.setGeometry(x + left, y + top, width, height)
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.translate(self.width() / 2 - 80, self.height() / 2 - 120)
-        painter.setPen(QPen(QColor('#91A4B8'), 2))
-        painter.setBrush(QColor('#18263A'))
+        painter.setPen(QPen(QColor('#52666F'), 2))
+        painter.setBrush(QColor('#27343B'))
         painter.drawRoundedRect(QRectF(12, 4, 136, 232), 65, 65)
         painter.drawLine(80, 5, 80, 95)
         painter.drawLine(15, 95, 145, 95)
-        painter.setPen(QPen(QColor('#4DE0BA'), 2))
+        painter.setPen(QPen(QColor('#52666F'), 2))
         painter.drawRoundedRect(QRectF(70, 28, 20, 38), 8, 8)
         painter.drawRoundedRect(QRectF(73, 113, 14, 20), 5, 5)
-        painter.setPen(QColor('#E9F1FA'))
-        for text, x, y in (('1', 43, 58), ('2', 112, 58), ('3', 75, 51), ('4', 20, 142), ('5', 20, 118), ('6', 76, 128)):
-            painter.drawText(x, y, text)
 
 
 class KeyCapture(QLineEdit):
@@ -51,6 +68,7 @@ class KeyCapture(QLineEdit):
         super().__init__()
         self.keys = []
         self.modifiers = 0
+        self.pressed = set()
         self.setReadOnly(True)
         self.setPlaceholderText('Focus here and press a combination')
         self.setAccessibleName('Capture keyboard combination')
@@ -62,6 +80,9 @@ class KeyCapture(QLineEdit):
         if code is None:
             self.setText('Unsupported key — choose a standard keyboard key')
             return
+        if code < 0xe0 and not any(key < 0xe0 for key in self.pressed):
+            self.keys = []
+        self.pressed.add(code)
         mods = event.modifiers()
         self.modifiers = sum(mask for qt, mask in ((Qt.KeyboardModifier.ControlModifier, 1),
             (Qt.KeyboardModifier.ShiftModifier, 2), (Qt.KeyboardModifier.AltModifier, 4),
@@ -69,6 +90,14 @@ class KeyCapture(QLineEdit):
         if code < 0xe0 and code not in self.keys:
             self.keys.append(code)
         self.setText(binding_text(Binding('keyboard', self.keys, self.modifiers), []))
+
+    def keyReleaseEvent(self, event):
+        self.pressed.discard(hid_key(event))
+        event.accept()
+
+    def focusOutEvent(self, event):
+        self.pressed.clear()
+        super().focusOutEvent(event)
 
 
 class BindingDialog(QDialog):
@@ -104,7 +133,8 @@ class BindingDialog(QDialog):
         self.macro = combo([(m.name, m.id) for m in macros], 'Assigned macro')
         self.macro.setCurrentIndex(max(0, self.macro.findData(binding.macro_id)))
         layout.addWidget(self.macro)
-        layout.addWidget(label('Capture standard logical keys. Modifier sides are not distinguished. At most 3 keys and 5 total keys + modifiers.', 'muted'))
+        self.help = label('', 'muted')
+        layout.addWidget(self.help)
         self.error = label('', 'error')
         layout.addWidget(self.error)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -128,9 +158,18 @@ class BindingDialog(QDialog):
         keyboard = self.action.currentData() == 'keyboard'
         self.capture.setEnabled(keyboard)
         self.clear.setEnabled(keyboard)
+        self.capture.setVisible(keyboard)
+        self.clear.setVisible(keyboard)
         for _, control in self.modifiers:
             control.setEnabled(keyboard)
-        self.macro.setEnabled(self.action.currentData() == 'macro')
+            control.setVisible(keyboard)
+        macro = self.action.currentData() == 'macro'
+        self.macro.setEnabled(macro)
+        self.macro.setVisible(macro)
+        self.help.setText('Press the shortcut together. A new shortcut replaces the previous capture. '
+                          'Maximum 3 keys and 5 keys + modifiers.' if keyboard else
+                          'Choose a macro created on the Macros page.' if macro else
+                          'Confirm this assignment, then click Apply to mouse.')
 
     def accept_validated(self):
         action = self.action.currentData()
@@ -164,19 +203,24 @@ class ButtonsPage(QWidget):
         self.settings, self.macros = None, []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        frame, content = card('Six buttons. Your shortcuts.')
-        content.addWidget(label('Choose an assignment for each physical button. Changes stay in the draft until applied.', 'muted'))
+        frame, content = card('Button assignments')
+        content.addWidget(label('Click a numbered button on the mouse or choose its assignment below. Apply to mouse confirms your changes.', 'muted'))
         body = QHBoxLayout()
-        body.addWidget(MouseDiagram(), 1)
+        self.diagram = MouseDiagram()
+        self.diagram.selected.connect(self.edit_binding)
+        body.addWidget(self.diagram, 1)
         assignments = QFormLayout()
-        assignments.setSpacing(14)
+        assignments.setSpacing(10)
         self.assignments = []
         for index, name in enumerate(('Left click', 'Right click', 'Wheel click', 'Back', 'Forward', 'DPI button')):
             item = button('', lambda checked=False, i=index: self.edit_binding(i))
+            item.setStyleSheet('QPushButton { text-align: left; padding-left: 12px; }')
+            item.setFixedWidth(240)
             item.setAccessibleName(f'Assign {name}')
             assignments.addRow(f'{index + 1}  {name}', item)
             self.assignments.append(item)
         body.addLayout(assignments, 3)
+        body.addStretch(2)
         content.addLayout(body)
         layout.addWidget(frame)
         layout.addWidget(label('Keep a reachable left-click assignment when changing buttons. Macro playback is performed by the mouse after Apply.', 'muted'))

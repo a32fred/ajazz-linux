@@ -1,5 +1,6 @@
 """User workflows against native widgets and the report-level simulator."""
 import copy
+import gc
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from pathlib import Path
@@ -9,9 +10,10 @@ import time
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid
 
 from vela.domain import Binding, Macro, MacroEvent, default_workspace
 from vela.formats import load_profile
@@ -46,6 +48,114 @@ class SlowSimulator(SimulatedTransport):
 
 
 class UiTests(unittest.TestCase):
+    def test_compact_shell_and_macro_columns_reflow(self):
+        from PySide6.QtWidgets import QBoxLayout
+        self.window.navigation.setCurrentRow(3)
+        self.window.resize(1100, 800)
+        APP.processEvents()
+        self.assertEqual(self.window.macros.columns.direction(), QBoxLayout.Direction.LeftToRight)
+        self.window.resize(800, 580)
+        for _ in range(5):
+            APP.processEvents()
+        self.assertGreaterEqual(self.window.pages.height(), 340)
+        self.assertEqual(self.window.macros.columns.direction(), QBoxLayout.Direction.LeftToRight)
+        self.assertEqual(self.window.pages.currentWidget().horizontalScrollBar().maximum(), 0)
+
+    def test_real_mode_automatically_reads_available_mouse(self):
+        self.close_window()
+        self.window = MainWindow(service=self.service, store=self.store, demo=False)
+        self.window.show()
+        until(lambda: self.window.snapshot is not None and not self.window.busy)
+        self.assertEqual(self.window.snapshot.device.id, self.transport.device.id)
+        self.assertFalse(any(packet[1] == 7 for packet in self.transport.sent))
+
+    def test_mouse_diagram_opens_assignment_for_each_button(self):
+        self.window.navigation.setCurrentRow(1)
+        APP.processEvents()
+        from vela.ui.buttons import BindingDialog
+        with patch.object(BindingDialog, 'exec', return_value=0) as edit:
+            for control in self.window.buttons.diagram.controls:
+                QTest.mouseClick(control, Qt.MouseButton.LeftButton)
+            self.assertEqual(edit.call_count, 6)
+            control = self.window.buttons.diagram.controls[3]
+            control.setFocus()
+            QTest.keyClick(control, Qt.Key.Key_Space)
+            self.assertEqual(edit.call_count, 7)
+
+    def test_automatic_reconnection_preserves_pending_draft(self):
+        self.window.snapshot = None
+        self.service.disconnect()
+        self.window.sensitivity.x_dpi.setValue(3200)
+        self.window.scan_devices()
+        until(lambda: self.window.snapshot is not None and not self.window.busy)
+        self.assertEqual(self.window.draft.stages[0].x, 3200)
+        self.assertEqual(self.window.snapshot.settings.stages[0].x, 800)
+
+    def test_shortcut_capture_replaces_released_keys(self):
+        from vela.ui.buttons import KeyCapture
+        capture = KeyCapture()
+        QTest.keyClick(capture, Qt.Key.Key_K)
+        QTest.keyClick(capture, Qt.Key.Key_L)
+        self.assertEqual(capture.keys, [15])
+        self.assertEqual(capture.text(), 'L')
+
+    def test_shortcut_capture_keeps_only_overlapping_keys(self):
+        from vela.ui.buttons import KeyCapture
+        capture = KeyCapture()
+        QTest.keyPress(capture, Qt.Key.Key_Control)
+        QTest.keyClick(capture, Qt.Key.Key_K, Qt.KeyboardModifier.ControlModifier)
+        QTest.keyClick(capture, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+        QTest.keyRelease(capture, Qt.Key.Key_Control)
+        self.assertEqual(capture.keys, [15])
+        self.assertEqual(capture.text(), 'Ctrl + L')
+
+    def test_scroll_light_controls_edit_the_draft_and_keep_unknown_modes(self):
+        from vela.domain import DpiEffect
+        page = self.window.lighting
+        draft = copy.deepcopy(self.window.draft)
+        draft.dpi_effect = DpiEffect(1, 10, 3)
+        page.load(draft)
+        self.assertFalse(page.dpi_speed.isEnabled())
+        page.dpi_mode.setCurrentIndex(page.dpi_mode.findData(2))
+        self.assertEqual(draft.dpi_effect.mode, 2)
+        self.assertTrue(page.dpi_speed.isEnabled())
+        page.dpi_speed.setValue(7)
+        page.dpi_brightness.setValue(4)
+        self.assertEqual((draft.dpi_effect.param, draft.dpi_effect.brightness), (7, 4))
+        page.dpi_mode.setCurrentIndex(page.dpi_mode.findData(0))
+        self.assertFalse(page.dpi_brightness.isEnabled())
+        other = copy.deepcopy(self.window.draft)
+        other.dpi_effect = DpiEffect(5, 10, 3)
+        page.load(other)
+        self.assertEqual(page.dpi_mode.currentData(), 5)
+        page.dpi_brightness.setValue(6)
+        self.assertEqual((other.dpi_effect.mode, other.dpi_effect.brightness), (5, 6))
+        page.load(copy.deepcopy(self.window.draft))
+        self.assertFalse(page.dpi_mode.isEnabled())
+
+    def test_unverified_lighting_controls_require_explicit_opt_in(self):
+        self.assertTrue(self.window.lighting.effect_controls.isHidden())
+        self.assertFalse(self.window.lighting.effect_controls.isEnabled())
+        self.window.lighting.experimental.setChecked(True)
+        self.assertTrue(self.window.lighting.effect_controls.isEnabled())
+        self.assertFalse(self.window.lighting.effect_controls.isHidden())
+
+    def test_macro_key_names_roundtrip(self):
+        self.window.macros.new_macro()
+        self.window.macros.add_event()
+        self.window.macros.event_table.item(0, 1).setText('Space')
+        self.window.macros.commit_editor()
+        self.assertEqual(self.window.macros.current().events[0].code, 0x2c)
+
+    def test_record_button_creates_macro_and_assigns_to_side_button(self):
+        self.window.macros.start_recording()
+        self.assertIsNotNone(self.window.macros.current())
+        QTest.keyClick(self.window.macros.recorder, Qt.Key.Key_A)
+        self.window.macros.stop_recording()
+        self.window.macros.assign_button.click()
+        self.assertEqual(self.window.draft.bindings[3].action, 'macro')
+        self.assertEqual(self.window.draft.bindings[3].macro_id, self.window.macros.current_id)
+
     def setUp(self):
         self.root = tempfile.TemporaryDirectory()
         self.transport = SlowSimulator()
@@ -56,11 +166,19 @@ class UiTests(unittest.TestCase):
         until(lambda: self.window.snapshot is not None and not self.window.busy)
 
     def tearDown(self):
+        self.close_window()
+        self.root.cleanup()
+
+    def close_window(self):
         self.window.close()
         until(lambda: not self.window.io_thread.isRunning())
         self.window.deleteLater()
-        APP.processEvents()
-        self.root.cleanup()
+        # Finish Qt deletion on the GUI thread before the next fixture can run.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertFalse(isValid(self.window))
+        del self.window
+        gc.collect()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def test_connect_edit_apply_and_page_switch_preserves_draft(self):
         self.assertIn('DEMO', self.window.mode_badge.text())
@@ -74,6 +192,49 @@ class UiTests(unittest.TestCase):
         until(lambda: not self.window.busy)
         self.assertEqual(self.window.snapshot.settings.stages[0].x, 3200)
         self.assertFalse(self.window.dirty)
+
+    def test_periodic_read_updates_clean_settings_without_writing(self):
+        from vela.protocol import checked
+        self.window.poll_timer.stop()
+        self.transport.memory[4:6] = checked([1])
+        self.transport.sent.clear()
+        self.window.poll_device()
+        until(lambda: not self.window.polling)
+        self.assertEqual(self.window.draft.active_stage, 1)
+        self.assertFalse(self.window.dirty)
+        self.assertFalse(any(packet[1] == 7 for packet in self.transport.sent))
+
+    def test_periodic_read_leaves_pending_edits_alone(self):
+        self.window.poll_timer.stop()
+        self.window.sensitivity.x_dpi.setValue(3200)
+        self.transport.sent.clear()
+        self.window.poll_device()
+        APP.processEvents()
+        self.assertFalse(self.window.busy)
+        self.assertEqual(self.window.draft.stages[0].x, 3200)
+        self.assertEqual(self.transport.sent, [])
+
+    def test_background_poll_keeps_editing_and_macro_recording_alive(self):
+        self.window.poll_timer.stop()
+        self.transport.delay = .01
+        self.window.poll_device()
+        self.assertFalse(self.window.busy)
+        self.assertTrue(self.window.polling)
+        self.assertTrue(self.window.pages.isEnabled())
+        self.window.macros.start_recording()
+        self.window.sensitivity.x_dpi.setValue(3200)
+        until(lambda: not self.window.polling)
+        self.assertEqual(self.window.draft.stages[0].x, 3200)
+        self.assertTrue(self.window.macros.recorder.recording)
+
+    def test_apply_during_background_poll_is_not_dropped(self):
+        self.window.poll_timer.stop()
+        self.transport.delay = .001
+        self.window.poll_device()
+        self.window.sensitivity.x_dpi.setValue(3200)
+        self.window.apply_draft()
+        until(lambda: not self.window.busy and not self.window.polling)
+        self.assertEqual(self.window.snapshot.settings.stages[0].x, 3200)
 
     def test_local_profile_macro_and_native_backup_roundtrip(self):
         self.window.macros.new_macro()

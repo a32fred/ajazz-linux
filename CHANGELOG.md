@@ -11,6 +11,9 @@ No public release is recorded by this changelog yet.
 - Native JSON workspaces with four local profiles, atomic saves, and bounded legacy JMM/JMA/DCT compatibility.
 - Focused macro recording, event editing, keyboard/media assignments and local profile import/export.
 - Read-only scan/status CLI, Linux launcher/desktop/uaccess files and configured Linux CI.
+- Scroll wheel light controls (effect, brightness, breathing speed) for the DPI light register, with the layout and hardware observations recorded in [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
+- EEPROM backup before every Apply, a lightweight status poll that tolerates a missed check, automatic reconnect that keeps the local draft, a refusal to remove the last Left click, and a write allowlist of known EEPROM regions.
+- Number fields with large minus/plus buttons, hold-to-repeat and type-to-replace; dark theme with one accent.
 - MIT license, dependency notices, contribution/security/conduct guidance and issue/PR templates.
 
 ### Validation and known limits

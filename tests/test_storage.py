@@ -26,6 +26,16 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(store.load(), value)
             self.assertEqual(json.loads(store.path.read_text(encoding='utf-8'))['schema_version'], 1)
 
+    def test_workspace_saved_before_the_dpi_light_field_still_loads(self):
+        from vela.storage import settings_from_dict
+        from dataclasses import asdict
+        from vela.domain import MouseSettings, DpiEffect
+        old = asdict(MouseSettings())
+        del old['dpi_effect']
+        self.assertIsNone(settings_from_dict(old).dpi_effect)
+        saved = asdict(MouseSettings(dpi_effect=DpiEffect(1, 7, 3)))
+        self.assertEqual(settings_from_dict(saved).dpi_effect, DpiEffect(1, 7, 3))
+
     def test_invalid_json_bounds_and_types(self):
         with tempfile.TemporaryDirectory() as root:
             store = ProfileStore(Path(root))

@@ -16,3 +16,7 @@ docs/superpowers/
 .env
 .env.*
 !.env.example
+
+# Vendor installer and local session transcripts must never be committed
+docs/AJAZZ_AJ199*/
+codex-session-*.md

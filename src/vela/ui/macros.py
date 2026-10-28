@@ -4,11 +4,11 @@ from pathlib import Path
 import secrets
 import time
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QListWidget,
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QLineEdit, QListWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QPlainTextEdit, QFileDialog, QCheckBox)
 from ..domain import Macro, MacroEvent, ValidationError
 from ..formats import load_macro, save_macro
-from .keys import hid_key
+from .keys import hid_key, key_name, parse_key
 from .widgets import label, card, row, button, spin, combo
 
 
@@ -108,6 +108,7 @@ class Recorder(QPlainTextEdit):
 class MacrosPage(QWidget):
     edited = Signal()
     message = Signal(str)
+    assign_requested = Signal(int, object)
 
     def __init__(self):
         super().__init__()
@@ -115,16 +116,20 @@ class MacrosPage(QWidget):
         self.loading = False
         self.current_id = None
         self.last_recorded = None
-        layout = QVBoxLayout(self)
+        layout = QBoxLayout(QBoxLayout.Direction.TopToBottom, self)
+        self.columns = layout
         layout.setContentsMargins(0, 0, 0, 0)
         library, content = card('Macro library')
+        self.library_panel = library
         self.library_list = QListWidget()
         self.library_list.setAccessibleName('Macro library')
-        self.library_list.setMaximumHeight(100)
-        content.addWidget(self.library_list)
-        content.addWidget(row(button('New', self.new_macro), button('Delete', self.delete_macro),
-                              button('Import JMM…', self.import_dialog), button('Export JMM…', self.export_dialog)))
-        content.addWidget(label('Save workspace stores the full library. Native backups retain every supported field; legacy JMM exports a compatible subset.', 'muted'))
+        self.library_list.setMinimumHeight(40)
+        content.addWidget(self.library_list, 1)
+        self.library_empty = label('Create or import a macro to begin.', 'muted')
+        content.addWidget(self.library_empty)
+        content.addWidget(row(button('New', self.new_macro), button('Delete', self.delete_macro), stretch=True))
+        content.addWidget(row(button('Import…', self.import_dialog), button('Export…', self.export_dialog), stretch=True))
+        content.addWidget(label('Save workspace keeps your library on this computer.', 'muted'))
         layout.addWidget(library)
         self.editor, content = card('Sequence editor')
         self.name_edit = QLineEdit()
@@ -135,16 +140,20 @@ class MacrosPage(QWidget):
         content.addWidget(row(self.name_edit, self.loop, self.repeat))
         self.event_table = QTableWidget(0, 5)
         self.event_table.setAccessibleName('Macro events')
-        self.event_table.setHorizontalHeaderLabels(['Event', 'HID code', 'Delay (ms)', 'Move X', 'Move Y'])
+        self.event_table.setHorizontalHeaderLabels(['Action', 'Key / button', 'Delay (ms)', 'Move X', 'Move Y'])
         self.event_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.event_table.setMinimumHeight(180)
-        self.event_table.setMaximumHeight(260)
-        content.addWidget(self.event_table)
+        self.event_table.setMinimumHeight(140)
+        content.addWidget(self.event_table, 1)
         content.addWidget(row(button('Add event', self.add_event), button('Remove', self.remove_event),
-                              button('Move up', lambda: self.move_event(-1)), button('Move down', lambda: self.move_event(1))))
+                              button('Move up', lambda: self.move_event(-1)), button('Move down', lambda: self.move_event(1)), stretch=True))
         self.count = label('0 / 70 events', 'muted')
         content.addWidget(self.count)
-        content.addWidget(label('Events: down, up, move. Codes are decimal or 0x hex HID usages; E0–E7 modifiers, F0–F4 mouse buttons. Delays 0–65535 ms. Device movement −128…127.', 'muted'))
+        content.addWidget(label('Record a sequence or enter key names such as A, Space or F1.', 'muted'))
+        self.advanced = QCheckBox('Show movement columns')
+        content.addWidget(self.advanced)
+        self.advanced.toggled.connect(lambda on: [self.event_table.setColumnHidden(i, not on) for i in (3, 4)])
+        for column in (3, 4):
+            self.event_table.setColumnHidden(column, True)
         self.auto_delay = QCheckBox('Record timing')
         self.auto_delay.setChecked(True)
         self.fixed_delay = spin(0, 65535, 'Fixed recording delay', ' ms')
@@ -152,13 +161,16 @@ class MacrosPage(QWidget):
         self.start_button = button('Start recording', self.start_recording)
         self.stop_button = button('Stop', self.stop_recording)
         self.stop_button.setEnabled(False)
-        content.addWidget(row(self.start_button, self.stop_button, self.auto_delay, self.fixed_delay))
+        content.addWidget(row(self.start_button, self.stop_button, self.auto_delay, self.fixed_delay, stretch=True))
         self.recorder = Recorder()
+        self.recorder.setMaximumHeight(56)
         content.addWidget(self.recorder)
+        self.assign_target = combo([('Side button: Back', 3), ('Side button: Forward', 4), ('DPI button', 5)], 'Macro target button')
+        self.assign_button = button('Assign to button', self.assign_current)
+        content.addWidget(row(self.assign_target, self.assign_button, stretch=True))
         self.error = label('', 'error')
         content.addWidget(self.error)
-        layout.addWidget(self.editor)
-        layout.addStretch()
+        layout.addWidget(self.editor, 1)
         self.library_list.currentRowChanged.connect(self.select_macro)
         self.name_edit.textChanged.connect(self.editor_changed)
         self.loop.currentIndexChanged.connect(self.editor_changed)
@@ -169,12 +181,21 @@ class MacrosPage(QWidget):
         self.recorder.unsupported.connect(self.error.setText)
         self.recorder.finished.connect(self.recording_finished)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        wide = self.width() >= 700
+        self.columns.setDirection(QBoxLayout.Direction.LeftToRight if wide else QBoxLayout.Direction.TopToBottom)
+        self.library_panel.setMaximumWidth(240 if wide else 16777215)
+        self.library_panel.setMaximumHeight(16777215 if wide else 230)
+        self.library_list.setMaximumHeight(16777215 if wide else 42)
+
     def current(self):
         return next((macro for macro in self.library if macro.id == self.current_id), None)
 
     def load(self, library):
         self.stop_recording()
         self.library = library
+        self.library_empty.setVisible(not library)
         self.loading = True
         self.library_list.clear()
         for macro in library:
@@ -185,6 +206,7 @@ class MacrosPage(QWidget):
         if index == -1:
             self.current_id = None
             self.editor.setEnabled(False)
+        self.assign_button.setEnabled(index != -1)
 
     def select_macro(self, index):
         if self.loading:
@@ -206,7 +228,9 @@ class MacrosPage(QWidget):
         self.auto_delay.setChecked(macro.auto_delay)
         self.event_table.setRowCount(len(macro.events))
         for i, event in enumerate(macro.events):
-            for column, value in enumerate((event.kind, event.code, event.delay_ms, event.dx, event.dy)):
+            for column, value in enumerate(({'down': 'Press', 'up': 'Release', 'move': 'Move'}[event.kind],
+                                            key_name(event.code) if event.kind != 'move' else '0',
+                                            event.delay_ms, event.dx, event.dy)):
                 self.event_table.setItem(i, column, QTableWidgetItem(str(value)))
         self.count.setText(f'{len(macro.events)} / 70 events')
         self.error.clear()
@@ -225,10 +249,11 @@ class MacrosPage(QWidget):
         for i in range(self.event_table.rowCount()):
             values = [self.event_table.item(i, column).text().strip() for column in range(5)]
             try:
-                numbers = [int(value, 16) if value.lower().startswith(('0x', '-0x')) else int(value) for value in values[1:]]
+                numbers = [parse_key(values[1])] + [int(value, 16) if value.lower().startswith(('0x', '-0x')) else int(value) for value in values[2:]]
             except ValueError as exc:
                 raise ValidationError(f'Event {i + 1}: enter whole numbers for code, delay and movement.') from exc
-            candidate.events.append(MacroEvent(values[0], *numbers))
+            kind = {'Press': 'down', 'Release': 'up', 'Move': 'move'}.get(values[0], values[0])
+            candidate.events.append(MacroEvent(kind, *numbers))
         candidate.validate()
         macro.__dict__.update(candidate.__dict__)
         self.repeat.setEnabled(macro.loop_mode == 'count')
@@ -308,6 +333,8 @@ class MacrosPage(QWidget):
             self.edited.emit()
 
     def start_recording(self):
+        if not self.current():
+            self.new_macro()
         try:
             self.commit_editor()
         except ValidationError as exc:
@@ -321,6 +348,16 @@ class MacrosPage(QWidget):
         self.recorder.setPlainText('Recording here only. Press Stop or leave this area to finish.')
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
+
+    def assign_current(self):
+        try:
+            self.commit_editor()
+            macro = self.current()
+            if macro is None or not macro.events:
+                raise ValidationError('Record or add a sequence before assigning it.')
+            self.assign_requested.emit(self.assign_target.currentData(), macro.id)
+        except ValidationError as exc:
+            self.error.setText(str(exc))
 
     def stop_recording(self):
         self.recorder.finish()

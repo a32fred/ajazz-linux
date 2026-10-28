@@ -4,11 +4,11 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtSvgWidgets import QSvgWidget
-from PySide6.QtWidgets import (QMainWindow, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
-    QListWidget, QStackedWidget, QScrollArea, QComboBox, QFileDialog, QInputDialog,
-    QMessageBox, QSizePolicy)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
+    QListWidget, QListView, QStackedWidget, QScrollArea, QComboBox, QFileDialog, QInputDialog,
+    QMessageBox, QMenu, QSizePolicy)
 
-from ..domain import ApplyError, ValidationError, default_workspace
+from ..domain import ApplyError, Binding, ValidationError, default_workspace
 from ..formats import load_profile, save_profile, load_dct, select_profile_macros
 from ..protocol import encode_macro
 from ..service import MouseService
@@ -17,7 +17,7 @@ from .worker import HardwareWorker
 from .settings_pages import SensitivityPage, LightingPage
 from .buttons import ButtonsPage
 from .macros import MacrosPage
-from .theme import STYLE
+from .theme import STYLE, VelaStyle
 from .widgets import label, button, row
 
 
@@ -32,6 +32,7 @@ class MainWindow(QMainWindow):
         self.snapshot = None
         self._snapshot_macros = []
         self.busy = False
+        self.polling = False
         self.closing = False
         self.thread_stopped = False
         self.loading = False
@@ -39,7 +40,9 @@ class MainWindow(QMainWindow):
         self.dirty = False
         self.devices = []
         self.load_error = None
-        self._startup_autoconnect = demo
+        self._startup_autoconnect = True
+        self._lost = False
+        self._reconnect_tick = 0
         self._saved_draft_loaded = self.store.path.exists()
         self._preserve_connect_draft = False
         self._device_macro_aliases = {}
@@ -55,9 +58,11 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(Path(__file__).parents[1] / 'assets' / 'vela.svg')))
         self.resize(1100, 800)
         self.setMinimumSize(800, 580)
+        if not isinstance(QApplication.instance().style(), VelaStyle):
+            QApplication.instance().setStyle(VelaStyle('Fusion'))
         self.setStyleSheet(STYLE)
         self.build_shell()
-        self.service = service or MouseService(demo=demo)
+        self.service = service or MouseService(demo=demo, backup_dir=self.store.path.parent / 'backups')
         self.io_thread = QThread(self)
         self.worker = HardwareWorker(self.service)
         self.worker.moveToThread(self.io_thread)
@@ -71,84 +76,107 @@ class MainWindow(QMainWindow):
         self.load_pages()
         self.update_profiles()
         self.update_actions()
+        self.poll_timer = QTimer(self)
+        self.poll_timer.setInterval(2000)
+        self.poll_timer.timeout.connect(self.poll_device)
+        self.poll_timer.start()
         if self.load_error:
             self.set_status(f'Workspace could not be loaded. Original file preserved: {self.load_error}. Import a valid backup or choose another workspace directory.', error=True)
-        elif demo:
-            QTimer.singleShot(0, self.scan_devices)
         else:
-            self.set_status('Select Scan to find a mouse. Draft edits are local until Apply.')
+            QTimer.singleShot(0, self.scan_devices)
 
     def build_shell(self):
         root = QWidget()
         self.setCentralWidget(root)
-        shell = QHBoxLayout(root)
+        shell = QVBoxLayout(root)
         shell.setContentsMargins(0, 0, 0, 0)
         shell.setSpacing(0)
-        sidebar = QFrame()
-        sidebar.setObjectName('sidebar')
-        sidebar.setFixedWidth(180)
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(18, 24, 18, 20)
-        side.setSpacing(18)
-        brand = QHBoxLayout()
+
+        top = QFrame()
+        top.setObjectName('topbar')
+        top_row = QHBoxLayout(top)
+        top_row.setContentsMargins(20, 8, 20, 8)
+        top_row.setSpacing(10)
         logo = QSvgWidget(str(Path(__file__).parents[1] / 'assets' / 'vela.svg'))
-        logo.setFixedSize(38, 42)
+        logo.setFixedSize(26, 30)
         logo.setAccessibleName('Vela sail logo')
-        brand.addWidget(logo)
-        wordmark = QVBoxLayout()
-        wordmark.setSpacing(2)
-        wordmark.addWidget(label('Vela', 'heading'))
-        subtitle = label('MOUSE STUDIO', 'muted')
-        subtitle.setStyleSheet('font-size: 10px; color: #91A4B8;')
-        wordmark.addWidget(subtitle)
-        brand.addLayout(wordmark)
-        side.addLayout(brand)
-        self.navigation = QListWidget()
-        self.navigation.setAccessibleName('Pages')
-        self.navigation.addItems(['Sensitivity', 'Buttons', 'Lighting', 'Macros'])
-        side.addWidget(self.navigation)
-        side.addWidget(button('About Vela', self.show_about))
-        side.addWidget(label('Linux · Windows\nv0.1.0', 'muted'))
-        shell.addWidget(sidebar)
+        top_row.addWidget(logo)
+        top_row.addWidget(label('Vela Mouse Studio', 'heading'))
+        self.page_title = label('Sensitivity', 'title')
+        self.page_title.hide()
+        top_row.addStretch()
+        self.device_summary = label('No mouse connected', 'muted')
+        self.device_summary.setWordWrap(False)
+        top_row.addWidget(self.device_summary)
+        self.mode_badge = label('DEMO MODE' if self.demo else 'REAL DEVICE', 'badge')
+        self.mode_badge.setWordWrap(False)
+        top_row.addWidget(self.mode_badge)
+        top_row.addWidget(button('About', self.show_about))
+        shell.addWidget(top)
+
         main = QWidget()
         content = QVBoxLayout(main)
-        content.setContentsMargins(24, 20, 24, 16)
-        content.setSpacing(14)
-        self.page_title = label('Sensitivity', 'title')
-        self.mode_badge = label('DEMO MODE' if self.demo else 'REAL DEVICE', 'badge')
-        self.mode_badge.setMaximumWidth(135)
-        content.addWidget(row(self.page_title, self.mode_badge))
-        self.device_summary = label('No mouse connected', 'muted')
-        content.addWidget(self.device_summary)
+        content.setContentsMargins(20, 4, 20, 8)
+        content.setSpacing(7)
+        self.navigation = QListWidget()
+        self.navigation.setObjectName('navigation')
+        self.navigation.setAccessibleName('Pages')
+        self.navigation.setViewMode(QListView.ViewMode.ListMode)
+        self.navigation.setFlow(QListView.Flow.LeftToRight)
+        self.navigation.setWrapping(False)
+        self.navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.navigation.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.navigation.setFixedHeight(39)
+        self.navigation.addItems(['Sensitivity', 'Buttons', 'Lighting', 'Macros'])
+        content.addWidget(self.navigation)
+
+        device = QFrame()
+        device.setObjectName('device')
+        device_row = QHBoxLayout(device)
+        device_row.setContentsMargins(12, 6, 12, 6)
+        device_row.setSpacing(16)
         self.connection_bar = QWidget()
+        self.connection_bar.setObjectName('row')
         connections = QHBoxLayout(self.connection_bar)
         connections.setContentsMargins(0, 0, 0, 0)
         self.device_picker = QComboBox()
         self.device_picker.setAccessibleName('Available mice')
-        self.device_picker.setMinimumContentsLength(13)
+        self.device_picker.setMinimumContentsLength(10)
         self.device_picker.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.scan_button = button('Scan', self.scan_devices)
         self.connect_button = button('Read mouse', self.connect_device)
         self.refresh_button = button('Refresh', self.refresh_device)
+        connections.addWidget(label('Mouse', 'muted'))
         connections.addWidget(self.device_picker, 1)
         connections.addWidget(self.scan_button)
         connections.addWidget(self.connect_button)
         connections.addWidget(self.refresh_button)
-        content.addWidget(self.connection_bar)
+        device_row.addWidget(self.connection_bar, 3)
+
         self.profile_bar = QWidget()
+        self.profile_bar.setObjectName('row')
         profiles = QHBoxLayout(self.profile_bar)
         profiles.setContentsMargins(0, 0, 0, 0)
-        profiles.addWidget(label('Local profile', 'muted'))
+        profiles.addWidget(label('Profile', 'muted'))
         self.profile_picker = QComboBox()
         self.profile_picker.setAccessibleName('Local draft profile')
+        self.profile_picker.setMinimumContentsLength(8)
         profiles.addWidget(self.profile_picker, 1)
-        profiles.addWidget(button('Rename', self.rename_profile))
-        profiles.addWidget(button('Save workspace', self.save_workspace))
-        content.addWidget(self.profile_bar)
+        self.files_bar = button('Workspace')
+        menu = QMenu(self.files_bar)
+        for text, slot in (('Rename profile', self.rename_profile), ('Save workspace', self.save_workspace),
+                           ('Import…', self.import_dialog), ('Export…', self.export_dialog)):
+            menu.addAction(text, slot)
+        self.files_bar.setMenu(menu)
+        profiles.addWidget(self.files_bar)
+        device_row.addWidget(self.profile_bar, 2)
+        content.addWidget(device)
+
         self.sensitivity = SensitivityPage()
         self.buttons = ButtonsPage()
         self.lighting = LightingPage()
         self.macros = MacrosPage()
+        self.macros.assign_requested.connect(self.assign_macro)
         self.pages = QStackedWidget()
         for page in (self.sensitivity, self.buttons, self.lighting, self.macros):
             scroll = QScrollArea()
@@ -160,17 +188,15 @@ class MainWindow(QMainWindow):
         self.macros.edited.connect(self.macro_changed)
         self.macros.message.connect(self.macro_message)
         content.addWidget(self.pages, 1)
-        self.files_bar = row(button('Import…', self.import_dialog), button('Export…', self.export_dialog))
-        content.addWidget(self.files_bar)
         self.status = label('', 'muted')
         self.status.setAccessibleName('Operation status')
-        self.status.setMinimumHeight(38)
-        content.addWidget(self.status)
+        self.status.setMinimumWidth(0)
         self.reset_button = button('Reset draft', self.reset_draft)
         self.apply_button = button('Apply to mouse', self.apply_draft, primary=True)
         footer = QHBoxLayout()
         self.draft_status = label('Draft is local', 'muted')
-        footer.addWidget(self.draft_status, 1)
+        footer.addWidget(self.status, 1)
+        footer.addWidget(self.draft_status)
         footer.addWidget(self.reset_button)
         footer.addWidget(self.apply_button)
         content.addLayout(footer)
@@ -237,12 +263,19 @@ class MainWindow(QMainWindow):
 
     def draft_changed(self):
         self.dirty = self.snapshot is None or self.draft != self.snapshot.settings or self.macros_dirty
-        self.draft_status.setText('Changes staged' if self.dirty else 'Mouse settings read back')
+        self.draft_status.setText('Changes not applied' if self.dirty else 'No changes')
         self.update_actions()
 
     def macro_changed(self):
         self.macros_dirty = True
         self.draft_changed()
+
+    def assign_macro(self, index, macro_id):
+        self.draft.bindings[index] = Binding('macro', macro_id=macro_id)
+        self.buttons.load(self.draft, self.workspace.macros)
+        self.draft_changed()
+        self.navigation.setCurrentRow(1)
+        self.set_status('Macro assigned in the draft. Click Apply to mouse, then Save workspace to keep your library.')
 
     def set_status(self, text, error=False):
         self.status.setText(text)
@@ -263,8 +296,10 @@ class MainWindow(QMainWindow):
             return
         self.macros.stop_recording()
         self.busy = True
-        self.set_status({'scan': 'Looking for mice…', 'connect': 'Reading mouse settings…',
-                         'refresh': 'Refreshing mouse status…', 'apply': 'Applying and checking mouse settings…'}[operation])
+        if not (operation == 'scan' and self._lost):
+            self.set_status({'scan': 'Looking for mice…', 'connect': 'Reading mouse settings…',
+                             'connect_first': 'Finding an active mouse connection…',
+                             'refresh': 'Refreshing mouse status…', 'apply': 'Applying and checking mouse settings…'}[operation])
         self.update_actions()
         self.requested.emit(operation, args)
 
@@ -287,6 +322,19 @@ class MainWindow(QMainWindow):
             except ValidationError as exc:
                 self.set_status(str(exc), error=True)
 
+    def poll_device(self):
+        if self.snapshot is None and self._lost and not self.busy and not self.closing:
+            self._reconnect_tick = (self._reconnect_tick + 1) % 3
+            if self._reconnect_tick == 0:
+                self.scan_devices()
+            return
+        if (self.snapshot is not None and not self.busy and not self.closing
+                and not self.polling
+                and not self.dirty and not self.macros.recorder.recording
+                and not self.isMinimized()):
+            self.polling = True
+            self.requested.emit('poll', ())
+
     def apply_draft(self):
         if self.busy or self.closing or self.snapshot is None:
             return
@@ -299,11 +347,32 @@ class MainWindow(QMainWindow):
             self.set_status(str(exc), error=True)
 
     def operation_finished(self, operation, result, error):
+        if operation == 'poll':
+            self.polling = False
+            if self.closing or self.busy:
+                return
+            if error:
+                if self.service.connected:
+                    return  # one missed status check is not a disconnect
+                self.operation_finished('refresh', None, error)
+                return
+            snapshot, _ = result
+            self.sensitivity.battery.setText('Unavailable' if snapshot.battery_percent is None else f'{snapshot.battery_percent}%')
+            if self.dirty or self.macros.recorder.recording:
+                return
+            if (self.snapshot is not None and snapshot.settings == self.snapshot.settings
+                    and snapshot.current_profile == self.snapshot.current_profile):
+                self.snapshot.battery_percent = snapshot.battery_percent
+                self.snapshot.charging = snapshot.charging
+                return
+            self.operation_finished('refresh', result, None)
+            return
         self.busy = False
         if self.closing:
             return
         if error:
             if not self.service.connected:
+                self._lost = self._lost or self.snapshot is not None
                 self.snapshot = None
                 self.device_summary.setText('Mouse disconnected · draft preserved')
                 self.sensitivity.battery.setText('—')
@@ -318,15 +387,26 @@ class MainWindow(QMainWindow):
             self.device_picker.clear()
             for device in result:
                 self.device_picker.addItem(f'{device.name} · {device.serial or device.id}')
-            self.set_status(f'{len(result)} mouse found. Choose Read mouse to load its current settings.' if result else
-                            'No supported mouse found. Check USB connection and Linux hidraw permissions.')
+            if not (self._lost and not result):
+                self.set_status(f'{len(result)} mouse found. Choose Read mouse to load its current settings.' if result else
+                                'No supported mouse found. Check USB connection and Linux hidraw permissions.')
             self.update_actions()
-            if self.demo and len(result) == 1:
-                self.connect_device(preserve_draft=self._startup_autoconnect and self._saved_draft_loaded)
+            if result and self.snapshot is None:
+                self._preserve_connect_draft = self.dirty or self._lost or (self._startup_autoconnect and self._saved_draft_loaded)
+                self.submit('connect_first', result)
             self._startup_autoconnect = False
             return
+        if operation == 'connect_first':
+            operation = 'connect'
+            snapshot, _ = result
+            index = next((i for i, device in enumerate(self.devices) if device.id == snapshot.device.id), -1)
+            self.device_picker.setCurrentIndex(index)
+        had_edits = self.dirty
+        self._lost = False
         snapshot, device_macros = result
         self.snapshot = snapshot
+        if self.draft.dpi_effect is None and snapshot.settings.dpi_effect is not None:
+            self.draft.dpi_effect = copy.deepcopy(snapshot.settings.dpi_effect)
         if operation == 'connect':
             self._device_macro_aliases.clear()
         self.adopt_device_macros(device_macros, snapshot.settings,
@@ -336,20 +416,21 @@ class MainWindow(QMainWindow):
         snapshot_ids = {binding.macro_id for binding in snapshot.settings.bindings if binding.action == 'macro'}
         self._snapshot_macros = copy.deepcopy([macro for macro in self.workspace.macros if macro.id in snapshot_ids])
         preserve_draft = operation == 'connect' and self._preserve_connect_draft
-        if operation == 'apply' or operation == 'connect' and not preserve_draft:
+        if (operation == 'apply' or operation == 'connect' and not preserve_draft
+                or operation == 'refresh' and not had_edits):
             self.draft = copy.deepcopy(snapshot.settings)
             self.macros_dirty = False
             self.load_pages()
         else:
             self.macros.load(self.workspace.macros)
-        self.device_summary.setText(f'AJ199 · {snapshot.device.name} · Device profile {snapshot.current_profile} · '
-                                    + ('Demo connection' if self.demo else 'Charging' if snapshot.charging else 'USB connected'))
+        self.device_summary.setText(f'{"AJ199 demo" if self.demo else snapshot.device.name} · Profile {snapshot.current_profile}')
+        self.device_summary.setToolTip('Demo connection' if self.demo else 'Charging' if snapshot.charging else 'USB connected')
         self.sensitivity.battery.setText('Unavailable' if snapshot.battery_percent is None else f'{snapshot.battery_percent}%')
         self.draft_changed()
-        self.set_status('Saved local profile preserved in draft. Apply writes it to the demo mouse.' if preserve_draft else
+        self.set_status('Local draft preserved. Apply writes it to the connected mouse.' if preserve_draft else
                         'Settings applied and read back. Save workspace to keep local profiles and macros.' if operation == 'apply' else
-                        'Mouse settings read. Local profiles and library stay on this computer.' if operation == 'connect' else
-                        'Mouse status refreshed. Draft edits preserved.')
+                        'Mouse settings read.' if operation == 'connect' else
+                        'Mouse status refreshed. Draft preserved.')
 
     @staticmethod
     def _macro_matches_readback(candidate, readback):
@@ -549,6 +630,7 @@ class MainWindow(QMainWindow):
         event.ignore()
         if not self.closing:
             self.closing = True
+            self.poll_timer.stop()
             self.macros.stop_recording()
             self.set_status('Closing after the current device operation finishes…')
             self.update_actions()

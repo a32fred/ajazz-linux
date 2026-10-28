@@ -64,6 +64,7 @@ class MacroCodecTests(unittest.TestCase):
         service = MouseService(demo=True)
         settings = service.connect(service.scan()[0]).settings
         settings.bindings[0] = Binding('macro', macro_id=1)
+        settings.bindings[5] = Binding('left')  # the guard keeps a reachable left click
         macro = Macro(1, 'x', [MacroEvent('down', 4)])
         service.apply(settings, [macro])
         service.disconnect()
@@ -77,6 +78,7 @@ class MacroCodecTests(unittest.TestCase):
         service = MouseService(demo=True)
         settings = service.connect(service.scan()[0]).settings
         settings.bindings[0] = Binding('keyboard', [4])
+        settings.bindings[5] = Binding('left')  # the guard keeps a reachable left click
         service.apply(settings)
         count = service.transport.write_count
         service.apply(settings)
@@ -111,6 +113,7 @@ class MacroCodecTests(unittest.TestCase):
         service = MouseService(demo=True)
         settings = service.connect(service.scan()[0]).settings
         settings.bindings[0] = Binding('macro', macro_id=7)
+        settings.bindings[5] = Binding('left')  # the guard keeps a reachable left click
         service.apply(settings, [Macro(7, 'x', [MacroEvent('down', 4)])])
         service.transport.memory[0x320] = 0xff
         settings = service.refresh().settings
@@ -125,6 +128,7 @@ class MacroCodecTests(unittest.TestCase):
         settings = service.connect(service.scan()[0]).settings
         settings.bindings[0] = Binding('macro', macro_id=7)
         settings.bindings[1] = Binding('macro', macro_id=7)
+        settings.bindings[5] = Binding('left')  # the guard keeps a reachable left click
         service.apply(settings, [Macro(7, 'x', [MacroEvent('down', 4)])])
         self.assertEqual(len(service.macros), 1)
         self.assertEqual(service.macros[0].id, 7)

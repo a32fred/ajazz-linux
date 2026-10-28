@@ -1,18 +1,27 @@
 """Synchronous, serialized application service; GUI callers use a worker thread."""
 import copy
+import json
 import threading
+import time
+from pathlib import Path
 
 from .domain import (ApplyError, Binding, DeviceError, DeviceSnapshot, ProtocolError,
                      ValidationError, VelaError, integer)
-from .protocol import (PHYSICAL_MATRIX, ProtocolClient, decode_settings,
+from .protocol import (PHYSICAL_MATRIX, ProtocolClient, decode_notification, decode_settings,
                        encode_binding, settings_records, checked, encode_macro,
                        encode_combination, decode_combination, decode_macro, verify_record)
 from .simulator import SimulatedTransport
 from .transport import HidTransport
 
 
+# EEPROM regions this application knows: settings block, key combinations, macro bodies.
+WRITABLE = ((0x0000, 0x00b9), (0x0100, 0x01c0), (0x0300, 0x0b00))
+POLL_FAILURES_BEFORE_DISCONNECT = 3
+BACKUPS_KEPT = 20
+
+
 class MouseService:
-    def __init__(self, demo=False, transport=None):
+    def __init__(self, demo=False, transport=None, backup_dir=None):
         self.transport = transport if transport is not None else (SimulatedTransport() if demo else HidTransport())
         self._client = ProtocolClient(self.transport)
         self._device = None
@@ -20,6 +29,8 @@ class MouseService:
         self._raw = None
         self._macros = []
         self._lock = threading.RLock()
+        self.backup_dir = None if backup_dir is None else Path(backup_dir)
+        self._poll_failures = 0
 
     @property
     def connected(self):
@@ -38,6 +49,16 @@ class MouseService:
     def scan(self):
         with self._lock:
             return self.transport.scan()
+
+    def connect_first(self, devices):
+        failures = []
+        with self._lock:
+            for device in devices:
+                try:
+                    return self.connect(device)
+                except (VelaError, OSError) as exc:
+                    failures.append(f'{device.name}: {exc}')
+        raise DeviceError('No active mouse connection responded. ' + ' '.join(failures))
 
     def connect(self, device):
         with self._lock:
@@ -145,6 +166,9 @@ class MouseService:
             records = settings_records(settings, self._raw, include_bindings=False)
             # Validate every requested operation before making the first write.
             records.update(self._binding_records(settings, macros))
+            had_left = any(binding.action == 'left' for binding in self._snapshot.settings.bindings)
+            if had_left and not any(binding.action == 'left' for binding in settings.bindings):
+                raise ValidationError('Keep at least one button assigned to Left click, or the mouse cannot be used to undo this change.')
             # The base snapshot ends at B9; compare auxiliary slots against their
             # actual device bytes rather than treating every apply as a change.
             try:
@@ -155,6 +179,10 @@ class MouseService:
                 raise
             records = {address: record for address, record in records.items()
                        if self._raw[address:address + len(record)] != record}
+            for address, record in records.items():
+                if not any(start <= address and address + len(record) <= end for start, end in WRITABLE):
+                    raise ValidationError(f'Refusing to write outside known EEPROM regions (0x{address:04x}).')
+            self._backup(records)
             shrinking = len(settings.stages) < len(self._snapshot.settings.stages)
             order = []
             if shrinking and 4 in records:
@@ -183,6 +211,79 @@ class MouseService:
                                  f'The mouse may contain some changes; reconnect to read its state. {exc}',
                                  completed_writes=completed, partial=attempted) from exc
 
+    def _backup(self, records):
+        """Save the bytes about to be overwritten; no backup means no write."""
+        if self.backup_dir is None or not records:
+            return
+        try:
+            regions = {0: self._raw}
+            for address, record in records.items():
+                if address >= 0x100:
+                    regions[address] = self._client.read_eeprom(address, len(record))
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime('%Y%m%d-%H%M%S')
+            path = self.backup_dir / f'eeprom-{stamp}.json'
+            path.write_text(json.dumps({'device': self._device.name, 'time': stamp,
+                                        'regions': {f'0x{a:04x}': bytes(v).hex() for a, v in regions.items()}}, indent=1))
+            for old in sorted(self.backup_dir.glob('eeprom-*.json'))[:-BACKUPS_KEPT]:
+                old.unlink()
+        except (OSError, DeviceError, ProtocolError) as exc:
+            raise DeviceError(f'Could not save a backup before writing, so nothing was written: {exc}') from exc
+
+    def poll(self):
+        """Cheap status check: profile, battery and the header holding stage count and active stage.
+
+        A changed header or profile triggers a full read. One failed check does not end the session.
+        """
+        with self._lock:
+            if not self.connected:
+                raise DeviceError('Connect a mouse first.')
+            try:
+                profile = self._client.query(14)
+                battery = self._client.query(4)
+                header = self._client.read_eeprom(0, 12)
+                if profile.size != 1 or battery.size != 2:
+                    raise ProtocolError('Malformed status response.')
+            except (VelaError, OSError):
+                self._poll_failures += 1
+                if self._poll_failures >= POLL_FAILURES_BEFORE_DISCONNECT:
+                    self.disconnect()
+                raise
+            self._poll_failures = 0
+            if profile.data[0] != self._snapshot.current_profile or header != self._raw[:12]:
+                return self.refresh()
+            snapshot = copy.deepcopy(self._snapshot)
+            snapshot.battery_percent = battery.data[0] if battery.data[0] <= 100 else None
+            snapshot.charging = bool(battery.data[1]) if battery.data[1] in (0, 1) else None
+            self._snapshot.battery_percent, self._snapshot.charging = snapshot.battery_percent, snapshot.charging
+            return snapshot
+
+    def dump(self, length=0x1000):
+        """Read-only copy of the first `length` EEPROM bytes."""
+        integer(length, 1, 0x10000, 'Dump length')
+        with self._lock:
+            if not self.connected:
+                raise DeviceError('Connect a mouse first.')
+            try:
+                return self._client.read_eeprom(0, length)
+            except (VelaError, OSError):
+                self.disconnect()
+                raise
+
+    def listen(self, seconds):
+        """Collect unsolicited reports for a while as (seconds, events, raw hex); sends nothing."""
+        integer(seconds, 1, 600, 'Listen time')
+        found = []
+        with self._lock:
+            if not self.connected:
+                raise DeviceError('Connect a mouse first.')
+            start = time.monotonic()
+            while time.monotonic() - start < seconds:
+                raw = self.transport.receive(200)
+                if raw:
+                    found.append((round(time.monotonic() - start, 2), decode_notification(raw), bytes(raw).hex(' ')))
+        return found
+
     def switch_profile(self, index):
         integer(index, 0, 255, 'Device profile index')
         with self._lock:
@@ -203,4 +304,5 @@ class MouseService:
             self._device = self._snapshot = self._raw = None
             self._macros = []
             self._applied_macro_ids = {}
+            self._poll_failures = 0
             self.transport.close()

@@ -1,7 +1,7 @@
 """DPI, sensor and lighting editors; every edit modifies a staged draft."""
 import copy
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QCheckBox, QSlider, QColorDialog, QFormLayout)
 
@@ -17,22 +17,20 @@ class SensitivityPage(QWidget):
         self.loading = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(18)
+        layout.setSpacing(10)
         summaries = QHBoxLayout()
-        current, content = card()
-        content.addWidget(label('CURRENT DRAFT DPI', 'muted'))
+        summaries.addWidget(label('Active stage', 'muted'))
         self.dpi_summary = label('800', 'large')
-        content.addWidget(self.dpi_summary)
-        battery, content = card()
-        content.addWidget(label('MOUSE BATTERY', 'muted'))
-        self.battery = label('—', 'large')
-        content.addWidget(self.battery)
-        summaries.addWidget(current)
-        summaries.addWidget(battery)
+        summaries.addWidget(self.dpi_summary)
+        summaries.addWidget(label('DPI', 'unit'))
+        summaries.addStretch()
+        summaries.addWidget(label('Battery', 'muted'))
+        self.battery = label('—', 'heading')
+        summaries.addWidget(self.battery)
         layout.addLayout(summaries)
         dpi_card, content = card('DPI stages')
         self.stage_count = spin(1, 6, 'Number of DPI stages')
-        content.addWidget(row(label('Number of stages', 'muted'), self.stage_count))
+        content.addWidget(row(label('Number of stages', 'muted'), self.stage_count, stretch=True))
         self.stage_buttons = []
         stages = QHBoxLayout()
         for index in range(6):
@@ -48,28 +46,31 @@ class SensitivityPage(QWidget):
         self.y_dpi.setSingleStep(50)
         self.link_axes = QCheckBox('Link X and Y')
         self.link_axes.setChecked(True)
-        content.addWidget(row(label('X DPI'), self.x_dpi, label('Y DPI'), self.y_dpi, self.link_axes))
+        content.addWidget(row(label('X DPI'), self.x_dpi, label('Y DPI'), self.y_dpi, self.link_axes, stretch=True))
         content.addWidget(label('50 — 26,000 DPI · steps of 50', 'muted'))
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setAccessibleName('DPI slider')
         self.slider.setRange(1, 520)
         content.addWidget(self.slider)
         self.stage_color = button('Stage color', self.choose_stage_color)
-        content.addWidget(self.stage_color)
+        content.addWidget(row(self.stage_color, stretch=True))
         layout.addWidget(dpi_card)
         sensor, content = card('Sensor & response')
         form = QFormLayout()
         form.setSpacing(12)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
         self.polling = combo([(f'{v} Hz', v) for v in (125, 250, 500, 1000)], 'Polling rate')
         self.debounce = spin(0, 30, 'Debounce time', ' ms')
         self.lod = combo([('1 mm', 1), ('2 mm', 2)], 'Lift-off distance')
+        for field in (self.polling, self.lod):
+            field.setFixedWidth(112)
         form.addRow('Polling rate', self.polling)
         form.addRow('Debounce time', self.debounce)
         form.addRow('Lift-off distance', self.lod)
         content.addLayout(form)
         self.angle = QCheckBox('Angle snapping')
         self.ripple = QCheckBox('Ripple filtering')
-        content.addWidget(row(self.angle, self.ripple))
+        content.addWidget(row(self.angle, self.ripple, stretch=True))
         layout.addWidget(sensor)
         layout.addStretch()
         self.stage_count.valueChanged.connect(self.change_count)
@@ -109,6 +110,9 @@ class SensitivityPage(QWidget):
                 item.setText(f'{index + 1}  ·  {value.x}')
                 item.setChecked(index == self.settings.active_stage)
         self.stage_color.setText(f'Stage color  {stage.color.upper()}')
+        swatch = QPixmap(16, 16)
+        swatch.fill(QColor(stage.color))
+        self.stage_color.setIcon(QIcon(swatch))
         self.dpi_summary.setText(str(stage.x) if stage.x == stage.y else f'{stage.x} × {stage.y}')
         self.loading = was_loading
 
@@ -165,7 +169,31 @@ class LightingPage(QWidget):
         self.loading = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        effect, content = card('Make it yours')
+        scroll, scroll_content = card('Scroll wheel light')
+        scroll_content.addWidget(label('The scroll wheel shows the color of the active DPI stage '
+                                       '(choose stage colors under Sensitivity).', 'muted'))
+        self.dpi_mode = combo([('Off', 0), ('Steady', 1), ('Breathing', 2)], 'Scroll light effect')
+        self.dpi_brightness = spin(1, 10, 'Scroll light brightness')
+        self.dpi_speed = spin(1, 8, 'Scroll light breathing speed')
+        self.dpi_form = QFormLayout()
+        self.dpi_form.setSpacing(12)
+        self.dpi_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
+        self.dpi_mode.setFixedWidth(160)
+        self.dpi_form.addRow('Effect', self.dpi_mode)
+        self.dpi_form.addRow('Brightness', row(self.dpi_brightness, label('of 10', 'unit'), stretch=True))
+        self.dpi_form.addRow('Breathing speed', row(self.dpi_speed, label('1 slowest, 8 fastest', 'unit'), stretch=True))
+        scroll_content.addLayout(self.dpi_form)
+        self.dpi_missing = label('The mouse has not reported a scroll light setting, so it cannot be changed here.', 'muted')
+        scroll_content.addWidget(self.dpi_missing)
+        layout.addWidget(scroll)
+        notice, notice_content = card('Main lighting')
+        notice_content.addWidget(label('The supplied driver lists no main lighting effect for this model, and these '
+                                       'controls have not been verified on it. Other mice that have one may use them.', 'muted'))
+        self.experimental = QCheckBox('Enable experimental lighting controls')
+        notice_content.addWidget(self.experimental)
+        layout.addWidget(notice)
+        effect, content = card('Main lighting (unverified)')
+        self.effect_controls = effect
         self.light_on = QCheckBox('Lighting enabled')
         content.addWidget(self.light_on)
         self.mode = combo([('Steady', 1), ('Breathing', 2), ('Neon', 4), ('Color breathing', 6), ('Off', 0)], 'Lighting effect')
@@ -183,13 +211,25 @@ class LightingPage(QWidget):
         content.addWidget(self.hint)
         layout.addWidget(effect)
         behavior, content = card('When to light up')
+        self.behavior_controls = behavior
         self.motion = QCheckBox('Turn lights off while moving')
         content.addWidget(self.motion)
         self.idle = combo([(f'{v} seconds' if v < 60 else f'{v // 60} minutes', v)
                            for v in (10, 30, 60, 300, 600, 900, 1200, 1500, 1800, 2100, 2400)], 'Idle light timeout')
         content.addWidget(row(label('Turn lights off after idle'), self.idle))
         layout.addWidget(behavior)
+        effect.setEnabled(False)
+        behavior.setEnabled(False)
+        effect.hide()
+        behavior.hide()
+        self.experimental.toggled.connect(effect.setEnabled)
+        self.experimental.toggled.connect(behavior.setEnabled)
+        self.experimental.toggled.connect(effect.setVisible)
+        self.experimental.toggled.connect(behavior.setVisible)
         layout.addStretch()
+        self.dpi_brightness.valueChanged.connect(self.dpi_brightness_changed)
+        self.dpi_speed.valueChanged.connect(self.dpi_speed_changed)
+        self.dpi_mode.currentIndexChanged.connect(self.dpi_mode_changed)
         self.mode.currentIndexChanged.connect(self.mode_changed)
         self.light_on.toggled.connect(lambda value: self.scalar('light_on', value))
         self.motion.toggled.connect(lambda value: self.scalar('light_off_while_moving', value))
@@ -200,6 +240,7 @@ class LightingPage(QWidget):
     def load(self, settings):
         self.settings = settings
         self.loading = True
+        self.load_dpi_effect(settings.dpi_effect)
         self.light_on.setChecked(settings.light_on)
         self.motion.setChecked(settings.light_off_while_moving)
         self.idle.setCurrentIndex(self.idle.findData(settings.idle_seconds))
@@ -209,6 +250,55 @@ class LightingPage(QWidget):
         self.color.setText(settings.lighting.color.upper() + '  ·  Choose color')
         self.loading = False
         self.update_mode()
+
+    def load_dpi_effect(self, effect):
+        self.dpi_missing.setVisible(effect is None)
+        for widget in (self.dpi_mode, self.dpi_brightness, self.dpi_speed):
+            widget.setEnabled(effect is not None)
+        if effect is None:
+            return
+        # A mode this app has not seen light up is kept as the mouse reported it.
+        known = self.dpi_mode.findData(effect.mode)
+        if known == -1:
+            self.dpi_mode.addItem(f'Mode {effect.mode} (as reported)', effect.mode)
+            known = self.dpi_mode.findData(effect.mode)
+        for index in reversed(range(self.dpi_mode.count())):
+            if self.dpi_mode.itemData(index) not in (0, 1, 2, effect.mode):
+                self.dpi_mode.removeItem(index)
+        self.dpi_mode.setCurrentIndex(self.dpi_mode.findData(effect.mode))
+        self.dpi_brightness.setValue(effect.brightness)
+        self.dpi_speed.setValue(min(max(effect.param, 1), 8))
+        self.update_dpi_controls()
+
+    def update_dpi_controls(self):
+        effect = self.settings.dpi_effect if self.settings else None
+        if effect is None:
+            return
+        self.dpi_brightness.setEnabled(effect.mode != 0)
+        self.dpi_speed.setEnabled(effect.mode == 2)
+
+    def dpi_mode_changed(self):
+        if self.loading or not self.settings or not self.settings.dpi_effect:
+            return
+        effect = self.settings.dpi_effect
+        effect.mode = self.dpi_mode.currentData()
+        if effect.mode == 2 and not 1 <= effect.param <= 8:
+            effect.param = 5
+            self.loading = True
+            self.dpi_speed.setValue(5)
+            self.loading = False
+        self.update_dpi_controls()
+        self.edited.emit()
+
+    def dpi_speed_changed(self, value):
+        if not self.loading and self.settings and self.settings.dpi_effect:
+            self.settings.dpi_effect.param = value
+            self.edited.emit()
+
+    def dpi_brightness_changed(self, value):
+        if not self.loading and self.settings and self.settings.dpi_effect:
+            self.settings.dpi_effect.brightness = value
+            self.edited.emit()
 
     def update_mode(self):
         mode = self.mode.currentData()

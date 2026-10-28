@@ -1,5 +1,6 @@
 """Explicit Qt logical-key to USB HID usage mapping (never ASCII as HID)."""
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence
 
 KEYS = {getattr(Qt.Key, f'Key_{chr(65 + n)}'): 4 + n for n in range(26)}
 KEYS.update({getattr(Qt.Key, f'Key_{n}'): 0x1d + n for n in range(1, 10)})
@@ -30,3 +31,24 @@ def hid_key(event):
         keypad.update({getattr(Qt.Key, f'Key_{n}'): 0x58 + n for n in range(1, 10)})
         return keypad.get(event.key())
     return KEYS.get(event.key())
+
+
+def key_name(code):
+    mouse = {0xf0: 'Mouse left', 0xf1: 'Mouse right', 0xf2: 'Mouse middle',
+             0xf3: 'Mouse forward', 0xf4: 'Mouse back'}
+    if code in mouse:
+        return mouse[code]
+    names = {0xe0: 'Left Ctrl', 0xe1: 'Left Shift', 0xe2: 'Left Alt', 0xe3: 'Left Super',
+             0xe4: 'Right Ctrl', 0xe5: 'Right Shift', 0xe6: 'Right Alt', 0xe7: 'Right Super'}
+    if code in names:
+        return names[code]
+    key = next((key for key, usage in KEYS.items() if usage == code), None)
+    name = QKeySequence(key).toString() if key is not None else f'0x{code:02X}'
+    return f'Key {name}' if name.isdigit() else name
+
+
+def parse_key(text):
+    names = {key_name(code).casefold(): code for code in (*KEYS.values(), *range(0xe0, 0xe8), *range(0xf0, 0xf5))}
+    if text.casefold() in names:
+        return names[text.casefold()]
+    return int(text, 16) if text.lower().startswith('0x') else int(text)

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from .domain import (Binding, DpiStage, FileFormatError, LightingSettings, Macro,
+from .domain import (Binding, DpiEffect, DpiStage, FileFormatError, LightingSettings, Macro,
                      MacroEvent, MouseSettings, Profile, Workspace, ValidationError,
                      default_workspace)
 
@@ -54,7 +54,10 @@ def _list(data, converter, maximum):
 
 
 def settings_from_dict(data):
+    if type(data) is dict and 'dpi_effect' not in data:
+        data = {**data, 'dpi_effect': None}  # workspaces saved before the DPI light existed
     result = _object(MouseSettings, data, {
+        'dpi_effect': lambda value: None if value is None else _object(DpiEffect, value),
         'stages': lambda value: _list(value, lambda d: _object(DpiStage, d), 6),
         'lighting': lambda value: _object(LightingSettings, value),
         'bindings': lambda value: _list(value, lambda d: _object(Binding, d), 6),

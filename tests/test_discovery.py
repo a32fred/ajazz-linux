@@ -60,6 +60,24 @@ class FakeHid:
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_linux_uses_hidraw_backend_for_real_device_discovery(self):
+        api = FakeHid([row(b'/dev/hidraw5', 0, 0, '')])
+        with patch('sys.platform', 'linux'), patch(
+                'vela.transport.importlib.import_module',
+                side_effect=lambda name: api if name == 'hidraw' else FakeHid([])) as load:
+            devices = HidTransport(descriptor_reader=lambda path: DESCRIPTOR).scan()
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0].command_path, b'/dev/hidraw5')
+        self.assertIn('USB cable', devices[0].name)
+        load.assert_called_once_with('hidraw')
+
+    def test_windows_keeps_hid_backend(self):
+        api = FakeHid([row(b'cmd', 0xff02, 2), row(b'in', 0xff01, 0)])
+        with patch('sys.platform', 'win32'), patch(
+                'vela.transport.importlib.import_module', return_value=api) as load:
+            self.assertEqual(len(HidTransport().scan()), 1)
+        load.assert_called_once_with('hid')
+
     def test_split_collections_and_small_reports(self):
         api = FakeHid([row(b'cmd', 0xff02, 2, feature_report_length=17),
                        row(b'in', 0xff01, 0, input_report_length=17),
@@ -81,7 +99,7 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_shared_path_with_multiple_enumeration_entries(self):
         api = FakeHid([row(b'/dev/hidraw1', 0xff02, 2), row(b'/dev/hidraw1', 0xff01, 0)])
-        devices = HidTransport(hid_module=api).scan()
+        devices = HidTransport(hid_module=api, descriptor_reader=lambda path: None).scan()
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0].command_path, devices[0].notification_path)
 

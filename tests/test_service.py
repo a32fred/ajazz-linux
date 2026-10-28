@@ -12,6 +12,14 @@ from vela.service import MouseService
 
 
 class ServiceTests(unittest.TestCase):
+    def test_auto_connect_skips_unavailable_connection_without_writes(self):
+        from dataclasses import replace
+        unavailable = replace(self.transport.device, id='inactive', command_path='inactive')
+        self.transport.sent.clear()
+        result = self.service.connect_first([unavailable, self.transport.device])
+        self.assertEqual(result.device, self.transport.device)
+        self.assertEqual(self.writes(), [])
+
     def setUp(self):
         self.transport = SimulatedTransport()
         self.service = MouseService(transport=self.transport)
@@ -97,8 +105,8 @@ class ServiceTests(unittest.TestCase):
         draft.bindings[4] = Binding('back')
         result = self.service.apply(draft)
         self.assertEqual(result.settings.bindings, draft.bindings)
-        self.assertEqual(bytes(self.transport.memory[0x70:0x74]), bytes.fromhex('01 10 00 44'))
-        self.assertEqual(bytes(self.transport.memory[0x6c:0x70]), bytes.fromhex('01 08 00 4c'))
+        self.assertEqual(bytes(self.transport.memory[0x70:0x74]), bytes.fromhex('01 08 00 4c'))
+        self.assertEqual(bytes(self.transport.memory[0x6c:0x70]), bytes.fromhex('01 10 00 44'))
 
     def test_unsupported_binding_fails_before_writes(self):
         draft = self.draft()
@@ -108,6 +116,93 @@ class ServiceTests(unittest.TestCase):
             self.service.apply(draft)
         self.assertEqual(self.writes(), [])
         self.assertTrue(self.service.connected)
+
+    def test_dpi_light_brightness_writes_only_its_record_and_is_read_back(self):
+        from vela.protocol import encode_dpi_effect
+        from vela.domain import DpiEffect
+        self.transport.memory[0x4c:0x54] = encode_dpi_effect(DpiEffect(1, 1, 3))
+        snapshot = self.service.refresh()
+        self.assertEqual(snapshot.settings.dpi_effect, DpiEffect(1, 1, 3))
+        draft = copy.deepcopy(snapshot.settings)
+        draft.dpi_effect.brightness = 10
+        self.transport.sent.clear()
+        result = self.service.apply(draft)
+        self.assertEqual(result.settings.dpi_effect.brightness, 10)
+        self.assertEqual(bytes(self.transport.memory[0x4c:0x54]), bytes.fromhex('01 54 ff 56 03 52 00 55'))
+        self.assertEqual(len(self.writes()), 1)
+
+    def test_apply_without_a_reported_dpi_light_leaves_that_record_alone(self):
+        self.assertIsNone(self.snapshot.settings.dpi_effect)
+        before = bytes(self.transport.memory[0x4c:0x54])
+        draft = self.draft()
+        draft.polling_hz = 500
+        self.service.apply(draft)
+        self.assertEqual(bytes(self.transport.memory[0x4c:0x54]), before)
+
+    def test_removing_the_last_left_click_is_refused_before_writes(self):
+        draft = self.draft()
+        draft.bindings[0] = Binding('right')
+        with self.assertRaisesRegex(ValidationError, 'Left click'):
+            self.service.apply(draft)
+        self.assertEqual(self.writes(), [])
+
+    def test_write_outside_known_regions_is_refused_before_writes(self):
+        draft = self.draft()
+        draft.polling_hz = 125
+        self.service._binding_records = lambda settings, macros: {0x00f0: bytes(4)}
+        with self.assertRaisesRegex(ValidationError, 'outside known EEPROM'):
+            self.service.apply(draft)
+        self.assertEqual(self.writes(), [])
+
+    def test_backup_is_saved_before_writing_and_missing_backup_blocks_the_write(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            self.service.backup_dir = Path(root) / 'backups'
+            before = bytes(self.transport.memory[0:0xb9])
+            draft = self.draft()
+            draft.stages[0].x = draft.stages[0].y = 1600
+            self.service.apply(draft)
+            files = list((Path(root) / 'backups').glob('eeprom-*.json'))
+            self.assertEqual(len(files), 1)
+            self.assertEqual(bytes.fromhex(json.loads(files[0].read_text())['regions']['0x0000']), before)
+            blocker = Path(root) / 'not-a-folder'
+            blocker.write_text('x')
+            self.service.backup_dir = blocker / 'backups'
+            writes = len(self.writes())
+            draft.stages[0].x = draft.stages[0].y = 3200
+            with self.assertRaisesRegex(DeviceError, 'nothing was written'):
+                self.service.apply(draft)
+            self.assertEqual(len(self.writes()), writes)
+
+    def test_poll_is_light_and_one_failure_keeps_the_session(self):
+        self.transport.sent.clear()
+        snapshot = self.service.poll()
+        self.assertEqual(snapshot.settings, self.snapshot.settings)
+        self.assertEqual(snapshot.battery_percent, 87)
+        self.assertEqual(len(self.transport.sent), 4)  # profile, battery, two header chunks
+        self.transport.ignore_writes = False
+        original = self.service._client.query
+        def broken(*args, **kwargs):
+            raise DeviceError('timeout')
+        self.service._client.query = broken
+        for _ in range(2):
+            with self.assertRaises(DeviceError):
+                self.service.poll()
+            self.assertTrue(self.service.connected)
+        with self.assertRaises(DeviceError):
+            self.service.poll()
+        self.assertFalse(self.service.connected)
+        self.service._client.query = original
+
+    def test_poll_reads_everything_again_when_the_header_changes(self):
+        from vela.protocol import settings_records
+        draft = self.draft()
+        draft.active_stage = 1
+        record = settings_records(draft)[4]
+        self.transport.memory[4:4 + len(record)] = record  # active stage changed on the mouse
+        snapshot = self.service.poll()
+        self.assertEqual(snapshot.settings.active_stage, 1)
 
     def test_partial_failure_is_reported_and_handle_closed(self):
         draft = self.draft()

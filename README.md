@@ -134,10 +134,12 @@ python -m vela --cli scan --demo
 python -m vela --cli status --demo
 python -m vela --cli scan
 python -m vela --cli status --device EXACT_ID_FROM_SCAN
+python -m vela --cli dump --device EXACT_ID_FROM_SCAN --length 0x1000
+python -m vela --cli listen --device EXACT_ID_FROM_SCAN --seconds 30
 python -m vela --demo --screenshot artifacts/vela.png --workspace artifacts/preview-workspace
 ```
 
-The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on argument errors. `scan` lists stable IDs and metadata; `status` requires `--device` if several devices are found. `--demo` can occur before or after the CLI command. Neither command writes settings. CLI operation imports no Qt modules. Preview requires `--demo` and closes cleanly after saving its PNG. For headless preview/tests set `QT_QPA_PLATFORM=offscreen`.
+The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on argument errors. `scan` lists stable IDs and metadata; `status` requires `--device` if several devices are found. `--demo` can occur before or after the CLI command. `dump` reads the first bytes of the mouse's memory as hex (default 0x1000) and `listen` prints the unsolicited reports the mouse sends, for example when you press the DPI button. None of the CLI commands writes settings. CLI operation imports no Qt modules. Preview requires `--demo` and closes cleanly after saving its PNG. For headless preview/tests set `QT_QPA_PLATFORM=offscreen`.
 
 ## Linux access and desktop integration
 

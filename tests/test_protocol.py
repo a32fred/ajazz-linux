@@ -122,3 +122,42 @@ class ProtocolTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DpiEffectCodecTests(unittest.TestCase):
+    # Bytes read from a real AJ199 (0x4C..0x53) before and after raising brightness.
+    LOW = bytes.fromhex('01 54 10 45 03 52 00 55')
+    HIGH = bytes.fromhex('01 54 ff 56 03 52 00 55')
+
+    def test_decode_and_encode_match_the_bytes_seen_on_hardware(self):
+        from vela.domain import DpiEffect
+        from vela.protocol import decode_dpi_effect, encode_dpi_effect
+        self.assertEqual(decode_dpi_effect(self.LOW), DpiEffect(1, 1, 3))
+        self.assertEqual(decode_dpi_effect(self.HIGH), DpiEffect(1, 10, 3))
+        self.assertEqual(encode_dpi_effect(DpiEffect(1, 1, 3)), self.LOW)
+        self.assertEqual(encode_dpi_effect(DpiEffect(1, 10, 3)), self.HIGH)
+
+    def test_uninitialized_or_corrupt_record_is_reported_as_missing(self):
+        from vela.protocol import decode_dpi_effect
+        self.assertIsNone(decode_dpi_effect(b'\xff' * 8))
+        self.assertIsNone(decode_dpi_effect(self.LOW[:7] + b'\x00'))
+        self.assertIsNone(decode_dpi_effect(bytes.fromhex('01 54 11 44 03 52 00 55')))  # not a known brightness level
+
+
+class NotificationTests(unittest.TestCase):
+    # Reports captured from a real AJ199 while pressing the DPI button twice (stage 2 to 0 to 1).
+    FIRST = bytes.fromhex('09 0a 00 00 00 0a 01 00 01 00 00 00 00 00 00 00 36')
+    SECOND = bytes.fromhex('09 0a 00 00 00 0a 01 01 01 00 00 00 00 00 00 00 35')
+
+    def test_dpi_stage_events_from_hardware(self):
+        from vela.protocol import decode_notification
+        self.assertEqual(decode_notification(self.FIRST), [('dpi_stage', 0)])
+        self.assertEqual(decode_notification(self.SECOND), [('dpi_stage', 1)])
+
+    def test_other_reports_and_unconfirmed_bits(self):
+        from vela.protocol import decode_notification
+        self.assertEqual(decode_notification(b''), [])
+        self.assertEqual(decode_notification(bytes([8, 3]) + bytes(15)), [])
+        report = bytearray(self.FIRST)
+        report[6] = 0x82
+        self.assertEqual(decode_notification(bytes(report)), [('bit1', 1), ('bit7', 0)])

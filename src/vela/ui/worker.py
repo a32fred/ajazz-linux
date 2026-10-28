@@ -15,7 +15,7 @@ class HardwareWorker(QObject):
     def execute(self, operation, arguments):
         try:
             result = getattr(self.service, operation)(*arguments)
-            if operation in ('connect', 'refresh', 'apply'):
+            if operation in ('connect', 'connect_first', 'refresh', 'apply', 'poll'):
                 result = (result, self.service.macros)
             self.completed.emit(operation, copy.deepcopy(result), None)
         except Exception as exc:

@@ -82,6 +82,23 @@ class LightingSettings:
 
 
 @dataclass
+class DpiEffect:
+    """Light on the scroll wheel that shows the active DPI stage color (EEPROM 0x4C).
+
+    Brightness is a step 1..10; mode and param are kept as the mouse reported them
+    because their meanings are not established.
+    """
+    mode: int = 1
+    brightness: int = 10
+    param: int = 3
+
+    def validate(self):
+        integer(self.mode, 0, 255, 'DPI light mode')
+        integer(self.brightness, 1, 10, 'DPI light brightness')
+        integer(self.param, 0, 255, 'DPI light parameter')
+
+
+@dataclass
 class Binding:
     action: str
     keys: list[int] = field(default_factory=list)
@@ -175,6 +192,7 @@ class MouseSettings:
     idle_seconds: int = 60
     lighting: LightingSettings = field(default_factory=LightingSettings)
     bindings: list[Binding] = field(default_factory=default_bindings)
+    dpi_effect: DpiEffect | None = None
 
     def validate(self):
         if not isinstance(self.stages, list) or not 1 <= len(self.stages) <= 6:
@@ -198,6 +216,10 @@ class MouseSettings:
         if not isinstance(self.lighting, LightingSettings):
             raise ValidationError('Invalid lighting settings.')
         self.lighting.validate()
+        if self.dpi_effect is not None:
+            if not isinstance(self.dpi_effect, DpiEffect):
+                raise ValidationError('Invalid DPI light settings.')
+            self.dpi_effect.validate()
         if not isinstance(self.bindings, list) or len(self.bindings) != 6:
             raise ValidationError('Exactly six physical button bindings are required.')
         for binding in self.bindings:

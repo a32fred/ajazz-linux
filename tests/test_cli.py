@@ -23,6 +23,19 @@ class CliTests(unittest.TestCase):
             else:
                 self.assertEqual(len(document['devices']), 1)
 
+    def test_dump_is_read_only_and_matches_the_simulated_memory(self):
+        from vela.simulator import SimulatedTransport
+        output = io.StringIO()
+        self.assertEqual(run(['dump', '--demo', '--length', '0x20'], stdout=output), 0)
+        document = json.loads(output.getvalue())
+        self.assertEqual(bytes.fromhex(document['regions']['0x0000']), bytes(SimulatedTransport().memory[:0x20]))
+
+    def test_listen_collects_reports_without_sending(self):
+        output = io.StringIO()
+        self.assertEqual(run(['listen', '--demo', '--seconds', '1'], stdout=output), 0)
+        document = json.loads(output.getvalue())
+        self.assertEqual((document['seconds'], document['reports']), (1, []))
+
     def test_status_requires_selection_if_multiple_devices(self):
         class Multiple(MouseService):
             def __init__(self, demo=False):

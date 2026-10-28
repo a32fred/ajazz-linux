@@ -8,12 +8,12 @@ import threading
 import time
 
 from .domain import (ProtocolError, DeviceError, ValidationError, integer, dpi, Macro, MacroEvent,
-                     Binding, DpiStage, LightingSettings, MouseSettings)
+                     Binding, DpiEffect, DpiStage, LightingSettings, MouseSettings)
 
 PHYSICAL_MATRIX = (0, 1, 2, 4, 3, 5)
 DIRECT_ACTIONS = {
     'disabled': 0, 'left': 0x101, 'right': 0x201, 'middle': 0x401,
-    'back': 0x801, 'forward': 0x1001,
+    'back': 0x1001, 'forward': 0x801,
     'left_double_click': 0x023204, 'left_triple_click': 0x033204,
     'dpi_up': 0x202, 'dpi_down': 0x302, 'dpi_cycle': 0x102,
     'polling_cycle': 7, 'light_toggle': 8, 'profile_cycle': 9,
@@ -281,11 +281,55 @@ def settings_records(settings, existing=None, include_bindings=True):
     for index, stage in enumerate(settings.stages):
         records[12 + 4 * index] = encode_dpi(stage.x, stage.y)
         records[44 + 4 * index] = checked(bytes.fromhex(stage.color[1:]))
+    if settings.dpi_effect is not None:
+        records[DPI_EFFECT_ADDRESS] = encode_dpi_effect(settings.dpi_effect)
     records[0xa0] = encode_lighting(settings.lighting, None if existing is None else existing[0xa0:0xa7])
     if include_bindings:
         for matrix, binding in zip(PHYSICAL_MATRIX, settings.bindings):
             records[0x60 + matrix * 4] = encode_binding(binding)
     return records
+
+
+def decode_notification(raw):
+    """Events in an unsolicited report (id 9, command 0x0A); [] for anything else.
+
+    Bit 0 is the active DPI stage, observed on hardware. The other bits come from the vendor
+    driver's dispatch and have not been triggered, so they are reported by bit number only.
+    """
+    raw = bytes(raw)
+    if len(raw) < 11 or raw[0] != 9 or raw[1] != 0x0a:
+        return []
+    mask, events = raw[6], []
+    if mask & 1:
+        events.append(('dpi_stage', raw[7]))
+    if mask & 2:
+        events.append(('bit1', raw[8] & 15))
+    if mask & 4:
+        events.append(('bit2', raw[10]))
+    for bit in (7, 6, 5):
+        if mask & (1 << bit):
+            events.append((f'bit{bit}', 0))
+    return events
+
+
+DPI_LIGHT_LEVELS = (0x10, 0x1e, 0x3c, 0x5a, 0x80, 0x96, 0xb4, 0xd2, 0xe6, 0xff)
+DPI_EFFECT_ADDRESS = 0x4c
+
+
+def encode_dpi_effect(effect):
+    """Four (value, 0x55 - value) pairs: mode, brightness level, parameter, padding."""
+    values = (effect.mode, DPI_LIGHT_LEVELS[effect.brightness - 1], effect.param, 0)
+    return b''.join(bytes([value, (0x55 - value) & 255]) for value in values)
+
+
+def decode_dpi_effect(raw):
+    """Return None for a record the mouse never initialized or that this app does not understand."""
+    raw = bytes(raw)
+    if len(raw) != 8 or any((raw[i] + raw[i + 1]) & 255 != 0x55 for i in range(0, 8, 2)):
+        return None
+    if raw[2] not in DPI_LIGHT_LEVELS or raw[6] != 0:
+        return None
+    return DpiEffect(raw[0], DPI_LIGHT_LEVELS.index(raw[2]) + 1, raw[4])
 
 
 def decode_settings(memory):
@@ -316,7 +360,8 @@ def decode_settings(memory):
                                  angle_snapping=boolean(0xaf), ripple=boolean(0xb1),
                                  light_on=boolean(0xab), light_off_while_moving=boolean(0xb3),
                                  idle_seconds=scalar(0xad) * 10, lighting=decode_lighting(memory[0xa0:0xa7]),
-                                 bindings=[decode_binding(memory[0x60 + i * 4:0x64 + i * 4]) for i in PHYSICAL_MATRIX])
+                                 bindings=[decode_binding(memory[0x60 + i * 4:0x64 + i * 4]) for i in PHYSICAL_MATRIX],
+                                 dpi_effect=decode_dpi_effect(memory[DPI_EFFECT_ADDRESS:DPI_EFFECT_ADDRESS + 8]))
         settings.validate()
         return settings
     except (ValidationError, KeyError) as exc:

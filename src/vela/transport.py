@@ -9,6 +9,7 @@ import importlib
 import os
 from pathlib import Path
 import re
+import sys
 
 from .domain import DeviceError, DeviceInfo, integer
 
@@ -103,7 +104,8 @@ class HidTransport:
     def _api(self):
         if self._hid is None:
             try:
-                self._hid = importlib.import_module('hid')
+                # libusb paths lack the hidraw descriptors and uaccess permissions.
+                self._hid = importlib.import_module('hidraw' if sys.platform == 'linux' else 'hid')
             except (ImportError, OSError) as exc:
                 raise DeviceError('Install the hidapi Python package and the system HIDAPI library.') from exc
         return self._hid
@@ -150,7 +152,8 @@ class HidTransport:
             row = commands[0]['row']
             command_path, input_path = row['path'], inputs[0]['row']['path']
             identity = hashlib.sha256(os.fsencode(command_path)).hexdigest()[:16]
-            devices.append(DeviceInfo(identity, 'AJ199', 0x25a7, row['product_id'], command_path,
+            name = 'AJ199 · USB cable' if row['product_id'] == 0xfa7b else 'AJ199 · Wireless receiver'
+            devices.append(DeviceInfo(identity, name, 0x25a7, row['product_id'], command_path,
                                       input_path, row.get('serial_number') or ''))
         return sorted(devices, key=lambda device: (device.pid, device.id))
 
