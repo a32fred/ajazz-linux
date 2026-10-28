@@ -1,7 +1,7 @@
 """Native desktop shell. Local profiles are drafts, not assumed hardware banks."""
 import copy
 from pathlib import Path
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QSettings, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QVBoxLayout, QHBoxLayout,
@@ -18,6 +18,7 @@ from .settings_pages import SensitivityPage, LightingPage
 from .buttons import ButtonsPage
 from .macros import MacrosPage
 from .theme import STYLE, VelaStyle
+from .notify import Notifier
 from .widgets import label, button, row
 
 
@@ -42,6 +43,10 @@ class MainWindow(QMainWindow):
         self.load_error = None
         self._startup_autoconnect = True
         self._lost = False
+        self.notifier = Notifier()
+        self.notifier.enabled = QSettings('Vela', 'Vela Mouse Studio').value('notifications', True, type=bool)
+        self._battery_alert = None
+        self.pumping = False
         self._reconnect_tick = 0
         self._saved_draft_loaded = self.store.path.exists()
         self._preserve_connect_draft = False
@@ -80,6 +85,10 @@ class MainWindow(QMainWindow):
         self.poll_timer.setInterval(2000)
         self.poll_timer.timeout.connect(self.poll_device)
         self.poll_timer.start()
+        self.pump_timer = QTimer(self)
+        self.pump_timer.setInterval(250)
+        self.pump_timer.timeout.connect(self.pump_device)
+        self.pump_timer.start()
         if self.load_error:
             self.set_status(f'Workspace could not be loaded. Original file preserved: {self.load_error}. Import a valid backup or choose another workspace directory.', error=True)
         else:
@@ -167,6 +176,11 @@ class MainWindow(QMainWindow):
         for text, slot in (('Rename profile', self.rename_profile), ('Save workspace', self.save_workspace),
                            ('Import…', self.import_dialog), ('Export…', self.export_dialog)):
             menu.addAction(text, slot)
+        menu.addSeparator()
+        notify = menu.addAction('Desktop notifications')
+        notify.setCheckable(True)
+        notify.setChecked(self.notifier.enabled)
+        notify.toggled.connect(self.set_notifications)
         self.files_bar.setMenu(menu)
         profiles.addWidget(self.files_bar)
         device_row.addWidget(self.profile_bar, 2)
@@ -330,10 +344,44 @@ class MainWindow(QMainWindow):
             return
         if (self.snapshot is not None and not self.busy and not self.closing
                 and not self.polling
-                and not self.dirty and not self.macros.recorder.recording
-                and not self.isMinimized()):
+                and not self.dirty and not self.macros.recorder.recording):
             self.polling = True
             self.requested.emit('poll', ())
+
+    def set_notifications(self, enabled):
+        self.notifier.enabled = enabled
+        QSettings('Vela', 'Vela Mouse Studio').setValue('notifications', enabled)
+
+    def pump_device(self):
+        if self.snapshot is not None and not self.busy and not self.closing and not self.polling and not self.pumping:
+            self.pumping = True
+            self.requested.emit('pump', ())
+
+    def on_dpi_stage(self, index):
+        stages = self.snapshot.settings.stages
+        if not 0 <= index < len(stages):
+            return
+        clean = not self.dirty
+        self.snapshot.settings.active_stage = index
+        if clean:
+            self.draft.active_stage = index
+            self.sensitivity.load_stage()
+        self.draft_changed()
+        stage = stages[index]
+        value = f'{stage.x} DPI' if stage.x == stage.y else f'{stage.x} × {stage.y} DPI'
+        self.notifier.show(f'DPI stage {index + 1}', value, key='vela-dpi')
+
+    def check_battery(self, percent, charging):
+        """Warn once at 20 percent and once at 10 percent; charging or recovery re-arms the warnings."""
+        if percent is None or charging or percent >= 30:
+            if percent is None or charging or percent >= 30:
+                self._battery_alert = None
+            return
+        for level in (10, 20):
+            if percent <= level and (self._battery_alert is None or self._battery_alert > level):
+                self._battery_alert = level
+                self.notifier.show('Mouse battery low', f'{percent}% left', key='vela-battery', timeout_ms=6000)
+                return
 
     def apply_draft(self):
         if self.busy or self.closing or self.snapshot is None:
@@ -347,6 +395,19 @@ class MainWindow(QMainWindow):
             self.set_status(str(exc), error=True)
 
     def operation_finished(self, operation, result, error):
+        if operation == 'pump':
+            self.pumping = False
+            if self.closing or self.busy:
+                return
+            if error:
+                if not self.service.connected:
+                    self.operation_finished('refresh', None, error)
+                return
+            if self.snapshot is not None:
+                for kind, value in result:
+                    if kind == 'dpi_stage':
+                        self.on_dpi_stage(value)
+            return
         if operation == 'poll':
             self.polling = False
             if self.closing or self.busy:
@@ -358,6 +419,7 @@ class MainWindow(QMainWindow):
                 return
             snapshot, _ = result
             self.sensitivity.battery.setText('Unavailable' if snapshot.battery_percent is None else f'{snapshot.battery_percent}%')
+            self.check_battery(snapshot.battery_percent, snapshot.charging)
             if self.dirty or self.macros.recorder.recording:
                 return
             if (self.snapshot is not None and snapshot.settings == self.snapshot.settings
@@ -631,6 +693,7 @@ class MainWindow(QMainWindow):
         if not self.closing:
             self.closing = True
             self.poll_timer.stop()
+            self.pump_timer.stop()
             self.macros.stop_recording()
             self.set_status('Closing after the current device operation finishes…')
             self.update_actions()

@@ -13,6 +13,8 @@ No public release is recorded by this changelog yet.
 - Read-only scan/status CLI, Linux launcher/desktop/uaccess files and configured Linux CI.
 - Scroll wheel light controls (effect, brightness, breathing speed) for the DPI light register, with the layout and hardware observations recorded in [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
 - EEPROM backup before every Apply, a lightweight status poll that tolerates a missed check, automatic reconnect that keeps the local draft, a refusal to remove the last Left click, and a write allowlist of known EEPROM regions.
+- Desktop notification when the DPI stage changes on the mouse (about a second or less) and low-battery warnings at 20 and 10 percent, from reports the mouse sends by itself; switchable under Workspace. The status poll also runs while the window is minimized.
+- `vela --cli restore` to write a `dump` or backup file back with a plan by default, a backup first, verified writes and protection for unknown registers.
 - Number fields with large minus/plus buttons, hold-to-repeat and type-to-replace; dark theme with one accent.
 - MIT license, dependency notices, contribution/security/conduct guidance and issue/PR templates.
 

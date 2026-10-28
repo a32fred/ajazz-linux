@@ -139,6 +139,50 @@ class ServiceTests(unittest.TestCase):
         self.service.apply(draft)
         self.assertEqual(bytes(self.transport.memory[0x4c:0x54]), before)
 
+    def test_pump_returns_events_the_mouse_sent_by_itself_and_queries_keep_them(self):
+        report = bytes.fromhex('09 0a 00 00 00 0a 01 01 01 00 00 00 00 00 00 00 35')  # seen on hardware: DPI stage 1
+        self.transport.sent.clear()
+        self.transport._queue.append(report)
+        self.assertEqual(self.service.pump(), [('dpi_stage', 1)])
+        self.assertEqual(self.service.pump(), [])
+        self.transport._queue.append(report)
+        self.service.poll()  # a query drains pending reports; the event must survive
+        self.assertEqual(self.service.pump(), [('dpi_stage', 1)])
+        self.assertEqual(self.writes(), [])
+
+    def test_restore_writes_only_what_differs_and_skips_unknown_registers(self):
+        import tempfile
+        saved = bytes(self.transport.memory[:0x1000])
+        self.assertEqual(self.service.restore({0: saved}), ([], []))
+        draft = self.draft()
+        draft.polling_hz = 500
+        draft.debounce_ms = 4
+        self.service.apply(draft)
+        self.assertNotEqual(bytes(self.transport.memory[:0xb9]), saved[:0xb9])
+        plan, skipped = self.service.restore({0: saved})  # plan only
+        self.assertEqual(sorted(address for address, _ in plan), [0, 0xa9])
+        self.assertEqual(self.writes()[-1][3:5], (0xa9).to_bytes(2, 'big'))  # nothing written by the plan itself
+        edited = bytearray(saved)
+        edited[6:8] = b'\x01\x54'  # an unknown register changed in the file
+        with tempfile.TemporaryDirectory() as root:
+            self.service.backup_dir = Path(root)
+            plan, skipped = self.service.restore({0: bytes(edited)}, apply=True)
+            self.assertEqual([address for address, _ in skipped], [6])
+            self.assertEqual(len(list(Path(root).glob('eeprom-*.json'))), 1)
+        self.assertEqual(bytes(self.transport.memory[:0xb9]), saved[:6] + bytes(self.transport.memory[6:8]) + saved[8:0xb9])
+        self.assertEqual(bytes(self.transport.memory[6:8]), saved[6:8])
+
+    def test_restore_refuses_bad_settings_partial_blocks_and_ignores_unknown_regions(self):
+        saved = bytearray(self.transport.memory[:0x100])
+        corrupt = bytearray(saved)
+        corrupt[0] ^= 0xff
+        with self.assertRaisesRegex(ValidationError, 'not valid'):
+            self.service.restore({0: bytes(corrupt)}, apply=True)
+        with self.assertRaisesRegex(ValidationError, 'start at 0x0000'):
+            self.service.restore({0x20: bytes(saved[0x20:0x40])}, apply=True)
+        self.assertEqual(self.service.restore({0xf0: b'\x01\x02\x03\x04'}, apply=True), ([], []))
+        self.assertEqual(self.writes(), [])
+
     def test_removing_the_last_left_click_is_refused_before_writes(self):
         draft = self.draft()
         draft.bindings[0] = Binding('right')

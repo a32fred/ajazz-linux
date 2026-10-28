@@ -109,6 +109,26 @@ class UiTests(unittest.TestCase):
         self.assertEqual(capture.keys, [15])
         self.assertEqual(capture.text(), 'Ctrl + L')
 
+    def test_dpi_stage_event_updates_the_stage_and_notifies(self):
+        shown = []
+        self.window.notifier.show = lambda title, body='', **kwargs: shown.append((title, body)) or True
+        stages = self.window.snapshot.settings.stages
+        self.window.on_dpi_stage(1)
+        self.assertEqual(self.window.snapshot.settings.active_stage, 1)
+        self.assertEqual(self.window.draft.active_stage, 1)
+        self.assertFalse(self.window.dirty)
+        self.assertEqual(shown, [('DPI stage 2', f'{stages[1].x} DPI')])
+        self.window.on_dpi_stage(99)
+        self.assertEqual(len(shown), 1)
+
+    def test_battery_warnings_fire_once_per_level_and_rearm(self):
+        shown = []
+        self.window.notifier.show = lambda title, body='', **kwargs: shown.append(body) or True
+        for percent, charging in ((50, False), (19, False), (18, False), (9, False), (8, False),
+                                  (35, False), (15, False), (15, True), (12, False), (None, False)):
+            self.window.check_battery(percent, charging)
+        self.assertEqual(shown, ['19% left', '9% left', '15% left', '12% left'])
+
     def test_scroll_light_controls_edit_the_draft_and_keep_unknown_modes(self):
         from vela.domain import DpiEffect
         page = self.window.lighting

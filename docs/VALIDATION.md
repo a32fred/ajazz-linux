@@ -125,7 +125,7 @@ Final whole-branch review findings were corrected and scoped re-review found no 
 
 ## Remaining limits
 
-- Live Linux desktop sessions, uaccess/desktop integration, real hardware writes, macro playback and hardware persistence remain **UNVALIDATED**. Automated headless Ubuntu checks are recorded above. Source availability does not guarantee every Linux distribution/architecture has compatible dependency binaries.
+- Live Linux desktop sessions, uaccess/desktop integration, macro playback, button remapping on hardware, the wireless receiver and persistence after power loss remain **UNVALIDATED**; settings, DPI, debounce and scroll light writes were checked by hand on one AJ199 (see Hardware observations). Automated headless Ubuntu checks are recorded above. Source availability does not guarantee every Linux distribution/architecture has compatible dependency binaries.
 - Unknown firmware/sensor fields and independent device profile banks remain unconfirmed; unsupported features are not exposed as working controls.
 - Legacy file support is the evidenced subset described in [format compatibility](reference/FORMAT_COMPATIBILITY.md); fresh default profiles cannot export to JMA. Native JSON preserves the supported local domain.
 - A native HID driver call stalled indefinitely cannot be safely interrupted; the worker preserves GUI responsiveness but shutdown may wait. Local saves are explicit, and concurrent app instances do not merge changes.

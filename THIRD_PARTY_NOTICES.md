@@ -7,4 +7,4 @@ Vela's MIT license does not relicense its dependencies. Installations obtain dep
 - **CPython:** Python Software Foundation license and bundled component notices: <https://docs.python.org/3/license.html>.
 - **Build tools (setuptools, build, pip):** build/development dependencies, not Vela application assets. Their installed distributions contain their licenses.
 
-No vendor application, binary, skin, image, font or SDK is included. The packaged sail logo is Vela's original local SVG, copied exactly from the approved brand asset.
+No vendor application, binary, skin, image, font or SDK is included. Protocol notes in `docs/reference` were derived from analysis of the vendor driver for interoperability and contain no copied code. The packaged sail logo is Vela's original local SVG, copied exactly from the approved brand asset.

@@ -96,7 +96,7 @@ The entries after the six physical buttons are the vendor's factory actions for 
 
 The mouse sends unsolicited reports (report id 9, command `0x0A`). Observed: pressing the DPI button sends one with bit 0 set and the new stage index as value (stage 2 to 0 to 1 produced values 0 then 1), and `0x04` in EEPROM changes in step. Mouse movement, scroll and ordinary clicks produced no notification. From the vendor driver, six notification types exist; the others were not triggered.
 
-`ProtocolClient.query` discards pending input reports before sending, so notifications are lost unless read separately.
+The client now keeps these reports when a query drains them and `pump()` reads them without sending anything. In the app a stage change reaches the screen and a desktop toast in under a second (checked by hand on this unit).
 
 ## Commands
 

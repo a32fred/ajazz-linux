@@ -4,6 +4,7 @@ No retries are performed after writes: missing acknowledgements leave write stat
 uncertain. A bounded drain prevents already queued replies satisfying a new call.
 """
 from dataclasses import dataclass
+import collections
 import threading
 import time
 
@@ -374,14 +375,32 @@ class ProtocolClient:
         self.timeout_ms = integer(timeout_ms, 1, 10000, 'Timeout')
         self.max_reports = integer(max_reports, 1, 1024, 'Report limit')
         self._lock = threading.RLock()
+        self.events = collections.deque(maxlen=64)
+
+    def _stash(self, raw):
+        self.events.extend(decode_notification(raw))
+
+    def pump(self):
+        """Read whatever the mouse already sent on its own, without sending anything; returns the events."""
+        with self._lock:
+            for _ in range(self.max_reports):
+                raw = self.transport.receive(0)
+                if not raw:
+                    break
+                self._stash(raw)
+            events = list(self.events)
+            self.events.clear()
+            return events
 
     def query(self, command, *, address=0, size=None, data=b'', match_eeprom=False):
         request = build_frame(command, address=address, size=size, data=data)
         with self._lock:
             # Non-blocking and bounded: an unsolicited flood cannot stall a call.
             for _ in range(self.max_reports):
-                if not self.transport.receive(0):
+                pending = self.transport.receive(0)
+                if not pending:
                     break
+                self._stash(pending)
             else:
                 raise DeviceError('Too many pending input reports; reconnect the mouse.')
             if self.transport.send(request) != 17:
@@ -398,7 +417,10 @@ class ProtocolClient:
                     reply = parse_frame(raw)
                 except ProtocolError:
                     continue
-                if reply.command == 10 or reply.command != command:
+                if reply.command == 10:
+                    self._stash(raw)
+                    continue
+                if reply.command != command:
                     continue
                 if match_eeprom and (reply.address != address or reply.size != size):
                     continue

@@ -16,6 +16,8 @@ from .transport import HidTransport
 
 # EEPROM regions this application knows: settings block, key combinations, macro bodies.
 WRITABLE = ((0x0000, 0x00b9), (0x0100, 0x01c0), (0x0300, 0x0b00))
+# Registers whose meaning is unknown; restore reports them but never writes them.
+RESTORE_PROTECTED = ((0x06, 0x0a), (0xa7, 0xa9))
 POLL_FAILURES_BEFORE_DISCONNECT = 3
 BACKUPS_KEPT = 20
 
@@ -257,6 +259,76 @@ class MouseService:
             snapshot.charging = bool(battery.data[1]) if battery.data[1] in (0, 1) else None
             self._snapshot.battery_percent, self._snapshot.charging = snapshot.battery_percent, snapshot.charging
             return snapshot
+
+    def restore(self, regions, apply=False):
+        """Plan, and with apply=True perform, writing saved EEPROM bytes back.
+
+        `regions` maps an address to bytes (a dump or a backup file). Only known regions are
+        considered, only differing bytes are written, unknown registers are skipped, and a settings
+        block with bad checksums is refused. Returns (writes, skipped) as lists of (address, bytes).
+        """
+        with self._lock:
+            if not self.connected:
+                raise DeviceError('Connect a mouse first.')
+            pieces = []
+            for address, data in regions.items():
+                data = bytes(data)
+                if address < 0xb9 and address + len(data) > 0:
+                    if address != 0 or len(data) < 0xb9:
+                        raise ValidationError('A settings block must start at 0x0000 and include 0x00B8.')
+                    try:
+                        decode_settings(data[:0xb9])
+                    except ProtocolError as exc:
+                        raise ValidationError(f'The saved settings are not valid for this mouse: {exc}') from exc
+                for start, end in WRITABLE:
+                    low, high = max(start, address), min(end, address + len(data))
+                    if low < high:
+                        pieces.append((low, data[low - address:high - address]))
+            writes, skipped = [], []
+            try:
+                for low, wanted in pieces:
+                    current = self._client.read_eeprom(low, len(wanted))
+                    index = 0
+                    while index < len(wanted):
+                        if wanted[index] == current[index]:
+                            index += 1
+                            continue
+                        end = index
+                        while end < len(wanted) and wanted[end] != current[end]:
+                            end += 1
+                        run_start, run_end = low + index, low + end
+                        if any(run_start < p_end and run_end > p_start for p_start, p_end in RESTORE_PROTECTED):
+                            skipped.append((run_start, wanted[index:end]))
+                        else:
+                            writes.append((run_start, wanted[index:end]))
+                        index = end
+            except (VelaError, OSError):
+                self.disconnect()
+                raise
+            if apply and writes:
+                self._backup(dict(writes))
+                done = 0
+                try:
+                    for address, data in writes:
+                        self._client.write_eeprom(address, data)
+                        done += 1
+                    self.refresh()
+                except (VelaError, OSError) as exc:
+                    self.disconnect()
+                    raise ApplyError(f'Restore stopped after {done} confirmed writes. Reconnect to read the mouse. {exc}',
+                                     completed_writes=done, partial=True) from exc
+            return writes, skipped
+
+    def pump(self):
+        """Events the mouse sent by itself since the last call, such as a DPI stage change; sends nothing."""
+        with self._lock:
+            if not self.connected:
+                return []
+            try:
+                return self._client.pump()
+            except (VelaError, OSError):
+                self.disconnect()
+                raise
 
     def dump(self, length=0x1000):
         """Read-only copy of the first `length` EEPROM bytes."""

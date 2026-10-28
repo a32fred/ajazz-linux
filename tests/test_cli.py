@@ -36,6 +36,29 @@ class CliTests(unittest.TestCase):
         document = json.loads(output.getvalue())
         self.assertEqual((document['seconds'], document['reports']), (1, []))
 
+    def test_restore_shows_a_plan_and_writes_only_with_yes(self):
+        import tempfile
+        from vela.simulator import SimulatedTransport
+        transport = SimulatedTransport()
+        class Shared(MouseService):
+            def __init__(self, demo=False):
+                super().__init__(transport=transport)
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'dump.json'
+            dump = io.StringIO()
+            self.assertEqual(run(['dump', '--length', '0x100'], service_factory=Shared, stdout=dump), 0)
+            path.write_text(dump.getvalue())
+            transport.memory[0xa9:0xab] = bytes([3, 0x55 - 3])  # debounce changed after the dump
+            plan = io.StringIO()
+            self.assertEqual(run(['restore', '--file', str(path)], service_factory=Shared, stdout=plan), 0)
+            document = json.loads(plan.getvalue())
+            self.assertFalse(document['written'])
+            self.assertEqual([c['address'] for c in document['changes']], ['0x00a9'])
+            self.assertEqual(transport.memory[0xa9], 3)
+            error = io.StringIO()
+            self.assertEqual(run(['restore', '--file', root + '/missing.json'], service_factory=Shared, stderr=error), 1)
+            self.assertIn('Cannot use', error.getvalue())
+
     def test_status_requires_selection_if_multiple_devices(self):
         class Multiple(MouseService):
             def __init__(self, demo=False):

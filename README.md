@@ -67,7 +67,7 @@ Unplug and reconnect the mouse's USB cable. Then open real mode:
 sh "$HOME/vela-mouse-studio/run-vela"
 ```
 
-Inside Vela, click **Scan**, select the AJ199, then click **Read mouse**. These actions read settings; only **Apply to mouse** writes your changes. Run Vela as your normal desktop user, not with `sudo`. Hardware writes are still experimentally unvalidated.
+Inside Vela, click **Scan**, select the AJ199, then click **Read mouse**. These actions read settings; only **Apply to mouse** writes your changes. Run Vela as your normal desktop user, not with `sudo`. Writes were checked by hand on a single AJ199 (USB cable) only, so treat them as experimental; see [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
 
 **Open it again later:** use the same `sh "$HOME/vela-mouse-studio/run-vela"` command from any terminal. For an application-menu shortcut, follow [Desktop shortcut](#desktop-shortcut-optional). For demo mode, add `--demo`.
 
@@ -136,10 +136,12 @@ python -m vela --cli scan
 python -m vela --cli status --device EXACT_ID_FROM_SCAN
 python -m vela --cli dump --device EXACT_ID_FROM_SCAN --length 0x1000
 python -m vela --cli listen --device EXACT_ID_FROM_SCAN --seconds 30
+python -m vela --cli restore --device EXACT_ID_FROM_SCAN --file dump.json
+python -m vela --cli restore --device EXACT_ID_FROM_SCAN --file dump.json --yes
 python -m vela --demo --screenshot artifacts/vela.png --workspace artifacts/preview-workspace
 ```
 
-The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on argument errors. `scan` lists stable IDs and metadata; `status` requires `--device` if several devices are found. `--demo` can occur before or after the CLI command. `dump` reads the first bytes of the mouse's memory as hex (default 0x1000) and `listen` prints the unsolicited reports the mouse sends, for example when you press the DPI button. None of the CLI commands writes settings. CLI operation imports no Qt modules. Preview requires `--demo` and closes cleanly after saving its PNG. For headless preview/tests set `QT_QPA_PLATFORM=offscreen`.
+The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on argument errors. `scan` lists stable IDs and metadata; `status` requires `--device` if several devices are found. `--demo` can occur before or after the CLI command. `dump` reads the first bytes of the mouse's memory as hex (default 0x1000) and `listen` prints the unsolicited reports the mouse sends, for example when you press the DPI button. `restore` takes a file written by `dump` or by the automatic Apply backup. Without `--yes` it only prints what would change. With `--yes` it saves a backup first, writes only the bytes that differ and verifies each write. It reads only known regions, refuses a settings block with bad checksums, and never writes the registers whose meaning is unknown. Every other CLI command is read-only. CLI operation imports no Qt modules. Preview requires `--demo` and closes cleanly after saving its PNG. For headless preview/tests set `QT_QPA_PLATFORM=offscreen`.
 
 ## Linux access and desktop integration
 
@@ -182,10 +184,10 @@ Tests use fake HID APIs and the simulator; they do not enumerate, open or write 
 
 All GUI service work runs on one queued worker; shutdown waits for the current transaction, closes its handle and ends the thread without blocking the GUI. HIDAPI `send_feature_report` has no configurable OS timeout. An indefinitely stalled native driver call cannot be safely interrupted; shutdown may wait indefinitely in that case. Vela never force-terminates a thread.
 
-Firmware updates, factory reset, ambiguous sensor/sleep features and Windows host-pointer settings are unavailable. No physical writes were performed during development.
+Firmware updates, factory reset, ambiguous sensor/sleep features and Windows host-pointer settings are unavailable. Writes were tested by hand on one AJ199 (USB cable): DPI, polling and debounce as reported by the author, and the scroll wheel light, which was written, read back and restored with a backup taken first. Buttons, macros and the wireless receiver were not validated on hardware.
 
 ## Provenance and licenses
 
-Vela's new code and original logo are MIT-licensed; see [LICENSE](LICENSE). Implementation was written from this repository's behavioral specification and approved design, without inspecting vendor executables, decompiled source, vendor images or adjacent research artifacts. The original sail logo is included locally at `src/vela/assets/vela.svg`; no hosted design service or remote asset is required at runtime.
+Vela's new code and original logo are MIT-licensed; see [LICENSE](LICENSE). The first version was written from this repository's behavioral specification without inspecting vendor executables. Later additions (the scroll wheel light register and its brightness table, and the layout of the reports the mouse sends by itself) were worked out by reading the vendor's Windows driver statically, for interoperability with hardware the author owns, and then checked on a physical AJ199. No vendor code, binary, image, font or text is included in this repository: the notes under `docs/reference` describe protocol facts and addresses only. The original sail logo is included locally at `src/vela/assets/vela.svg`; no hosted design service or remote asset is required at runtime.
 
 Dependencies retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Vela is an independent compatibility utility, with no claim of manufacturer affiliation.
