@@ -24,7 +24,7 @@ The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical d
 
 ### Install from a package (recommended)
 
-Download the files for your system from the [latest release](https://github.com/a32fred/ajazz-linux/releases) (a pre-release for now). Two packages exist so that nothing you do not use is installed:
+Download the files for your system from the [latest release](https://github.com/a32fred/ajazz-linux/releases/latest) (early preview: see the limits below). Two packages exist so that nothing you do not use is installed:
 
 - **`ajazz-linux-cli`**: the command line tools and the udev rule. It needs only Python 3.10 or newer, no other packages, and works on any distribution.
 - **`ajazz-linux`**: the window. It adds the desktop entry and uses the Qt that your distribution already provides, so it adds well under 1 MB instead of a bundled copy of Qt.
