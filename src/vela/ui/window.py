@@ -358,11 +358,8 @@ class MainWindow(QMainWindow):
         stages = self.snapshot.settings.stages
         if not 0 <= index < len(stages):
             return
-        clean = not self.dirty
-        self.snapshot.settings.active_stage = index
-        if clean:
-            self.draft.active_stage = index
-            self.sensitivity.load_stage()
+        self.snapshot.settings.active_stage = self.draft.active_stage = index
+        self.sensitivity.load_stage()
         self.draft_changed()
         stage = stages[index]
         value = f'{stage.x} DPI' if stage.x == stage.y else f'{stage.x} × {stage.y} DPI'
@@ -435,6 +432,7 @@ class MainWindow(QMainWindow):
                 self.device_summary.setText('Mouse disconnected · draft preserved')
                 self.sensitivity.battery.setText('—')
             if isinstance(error, ApplyError) and error.partial:
+                self._lost = False  # reconnecting by itself would overwrite this warning
                 self.set_status(f'The mouse may contain some changes ({error.completed_writes} confirmed). Reconnect to read its state. {error}', error=True)
             else:
                 self.set_status(f'{error}', error=True)

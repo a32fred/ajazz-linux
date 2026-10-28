@@ -316,6 +316,7 @@ DPI_EFFECT_ADDRESS = 0x4c
 
 def encode_dpi_effect(effect):
     """Four (value, 0x55 - value) pairs: mode, brightness level, parameter, padding."""
+    effect.validate()
     values = (effect.mode, DPI_LIGHT_LEVELS[effect.brightness - 1], effect.param, 0)
     return b''.join(bytes([value, (0x55 - value) & 255]) for value in values)
 

@@ -1,4 +1,5 @@
 """Synchronous, serialized application service; GUI callers use a worker thread."""
+import contextlib
 import copy
 import json
 import threading
@@ -16,8 +17,12 @@ from .transport import HidTransport
 
 # EEPROM regions this application knows: settings block, key combinations, macro bodies.
 WRITABLE = ((0x0000, 0x00b9), (0x0100, 0x01c0), (0x0300, 0x0b00))
-# Registers whose meaning is unknown; restore reports them but never writes them.
-RESTORE_PROTECTED = ((0x06, 0x0a), (0xa7, 0xa9))
+# Whole registers that `restore` may write, as (address, length). Anything else, including the
+# registers whose meaning is unknown, is reported and left alone.
+REGISTERS = ([(address, 2) for address in (0x00, 0x02, 0x04, 0x0a, 0xa9, 0xab, 0xad, 0xaf, 0xb1, 0xb3)]
+             + [(0x0c + 4 * i, 4) for i in range(8)] + [(0x2c + 4 * i, 4) for i in range(8)]
+             + [(0x4c, 8), (0xa0, 7)] + [(0x60 + 4 * matrix, 4) for matrix in PHYSICAL_MATRIX]
+             + [(0x100 + 32 * matrix, 32) for matrix in range(6)] + [(0x300 + 0x180 * matrix, 0x180) for matrix in range(6)])
 POLL_FAILURES_BEFORE_DISCONNECT = 3
 BACKUPS_KEPT = 20
 
@@ -185,19 +190,7 @@ class MouseService:
                 if not any(start <= address and address + len(record) <= end for start, end in WRITABLE):
                     raise ValidationError(f'Refusing to write outside known EEPROM regions (0x{address:04x}).')
             self._backup(records)
-            shrinking = len(settings.stages) < len(self._snapshot.settings.stages)
-            order = []
-            if shrinking and 4 in records:
-                order.append(4)
-            # Initialize added DPI/color records before increasing the stage count.
-            order.extend(sorted(address for address in records if 12 <= address < 0x4c))
-            if 2 in records:
-                order.append(2)
-            if 4 in records and 4 not in order:
-                order.append(4)
-            # Auxiliary data must be confirmed before a matrix entry enables it.
-            order.extend(sorted(address for address in records if address >= 0x100))
-            order.extend(sorted(address for address in records if address not in order))
+            order = self._write_order(records, len(settings.stages) < len(self._snapshot.settings.stages))
             completed = 0
             attempted = False
             try:
@@ -213,6 +206,21 @@ class MouseService:
                                  f'The mouse may contain some changes; reconnect to read its state. {exc}',
                                  completed_writes=completed, partial=attempted) from exc
 
+    @staticmethod
+    def _write_order(addresses, shrinking):
+        """Dependencies first: stage records before the count, auxiliary bodies before the key matrix."""
+        order = []
+        if shrinking and 4 in addresses:
+            order.append(4)
+        order.extend(sorted(address for address in addresses if 12 <= address < 0x4c))
+        if 2 in addresses:
+            order.append(2)
+        if 4 in addresses and 4 not in order:
+            order.append(4)
+        order.extend(sorted(address for address in addresses if address >= 0x100))
+        order.extend(sorted(address for address in addresses if address not in order))
+        return order
+
     def _backup(self, records):
         """Save the bytes about to be overwritten; no backup means no write."""
         if self.backup_dir is None or not records:
@@ -224,13 +232,14 @@ class MouseService:
                     regions[address] = self._client.read_eeprom(address, len(record))
             self.backup_dir.mkdir(parents=True, exist_ok=True)
             stamp = time.strftime('%Y%m%d-%H%M%S')
-            path = self.backup_dir / f'eeprom-{stamp}.json'
+            path = self.backup_dir / f'eeprom-{stamp}-{time.time_ns() % 1000000:06d}.json'
             path.write_text(json.dumps({'device': self._device.name, 'time': stamp,
                                         'regions': {f'0x{a:04x}': bytes(v).hex() for a, v in regions.items()}}, indent=1))
-            for old in sorted(self.backup_dir.glob('eeprom-*.json'))[:-BACKUPS_KEPT]:
-                old.unlink()
         except (OSError, DeviceError, ProtocolError) as exc:
             raise DeviceError(f'Could not save a backup before writing, so nothing was written: {exc}') from exc
+        for old in sorted(self.backup_dir.glob('eeprom-*.json'))[:-BACKUPS_KEPT]:
+            with contextlib.suppress(OSError):  # the new backup is already safe; a stale one may stay
+                old.unlink()
 
     def poll(self):
         """Cheap status check: profile, battery and the header holding stage count and active stage.
@@ -263,59 +272,55 @@ class MouseService:
     def restore(self, regions, apply=False):
         """Plan, and with apply=True write, saved EEPROM bytes (address to bytes) back.
 
-        Only known regions and differing bytes count, unknown registers are skipped, and a settings
-        block with bad checksums is refused. Returns (writes, skipped) as lists of (address, bytes)."""
+        Whole registers only, so a failed write never leaves a half-written checksum; unknown registers
+        are skipped and a dump without a Left click or with bad checksums is refused.
+        Returns (writes, skipped) as lists of (address, bytes)."""
         with self._lock:
             if not self.connected:
                 raise DeviceError('Connect a mouse first.')
-            pieces = []
+            saved = None
             for address, data in regions.items():
-                data = bytes(data)
                 if address < 0xb9 and address + len(data) > 0:
                     if address != 0 or len(data) < 0xb9:
                         raise ValidationError('A settings block must start at 0x0000 and include 0x00B8.')
                     try:
-                        decode_settings(data[:0xb9])
+                        saved = decode_settings(bytes(data[:0xb9]))
                     except ProtocolError as exc:
                         raise ValidationError(f'The saved settings are not valid for this mouse: {exc}') from exc
-                for start, end in WRITABLE:
-                    low, high = max(start, address), min(end, address + len(data))
-                    if low < high:
-                        pieces.append((low, data[low - address:high - address]))
-            writes, skipped = [], []
+                    if not any(binding.action == 'left' for binding in saved.bindings):
+                        raise ValidationError('The saved settings have no Left click, so the mouse could not undo them.')
+            writes, skipped = {}, []
             try:
-                for low, wanted in pieces:
-                    current = self._client.read_eeprom(low, len(wanted))
-                    index = 0
-                    while index < len(wanted):
-                        if wanted[index] == current[index]:
-                            index += 1
-                            continue
-                        end = index
-                        while end < len(wanted) and wanted[end] != current[end]:
-                            end += 1
-                        run_start, run_end = low + index, low + end
-                        if any(run_start < p_end and run_end > p_start for p_start, p_end in RESTORE_PROTECTED):
-                            skipped.append((run_start, wanted[index:end]))
+                for address, length in REGISTERS:
+                    held = [(start, data) for start, data in regions.items() if start <= address and address + length <= start + len(data)]
+                    if held and (wanted := bytes(held[0][1][address - held[0][0]:address - held[0][0] + length])) != \
+                            self._client.read_eeprom(address, length):
+                        writes[address] = wanted
+                if saved is not None:
+                    known = {a + i for a, n in REGISTERS for i in range(n)}
+                    current, image = self._client.read_eeprom(0, 0xb9), bytes(regions[0][:0xb9])
+                    for i in (i for i in range(0xb9) if i not in known and image[i] != current[i]):
+                        if skipped and skipped[-1][0] + len(skipped[-1][1]) == i:
+                            skipped[-1] = (skipped[-1][0], skipped[-1][1] + bytes([image[i]]))
                         else:
-                            writes.append((run_start, wanted[index:end]))
-                        index = end
+                            skipped.append((i, bytes([image[i]])))
             except (VelaError, OSError):
                 self.disconnect()
                 raise
             if apply and writes:
-                self._backup(dict(writes))
+                self._backup(writes)
                 done = 0
                 try:
-                    for address, data in writes:
-                        self._client.write_eeprom(address, data)
+                    shrinking = saved is not None and len(saved.stages) < len(self._snapshot.settings.stages)
+                    for address in self._write_order(writes, shrinking):
+                        self._client.write_eeprom(address, writes[address])
                         done += 1
                     self.refresh()
                 except (VelaError, OSError) as exc:
                     self.disconnect()
                     raise ApplyError(f'Restore stopped after {done} confirmed writes. Reconnect to read the mouse. {exc}',
                                      completed_writes=done, partial=True) from exc
-            return writes, skipped
+            return sorted(writes.items()), skipped
 
     def pump(self):
         """Events the mouse sent by itself since the last call, such as a DPI stage change; sends nothing."""
@@ -375,4 +380,5 @@ class MouseService:
             self._macros = []
             self._applied_macro_ids = {}
             self._poll_failures = 0
+            self._client.events.clear()
             self.transport.close()

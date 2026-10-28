@@ -137,6 +137,20 @@ class UiTests(unittest.TestCase):
         self.window.on_dpi_stage(99)
         self.assertEqual(len(shown), 1)
 
+    def test_dpi_stage_changed_on_the_mouse_also_updates_an_edited_draft(self):
+        self.window.notifier.show = lambda *args, **kwargs: True
+        self.window.sensitivity.x_dpi.setValue(3200)
+        self.assertTrue(self.window.dirty)
+        self.window.on_dpi_stage(1)
+        self.assertEqual(self.window.draft.active_stage, 1)
+
+    def test_half_applied_write_is_not_hidden_by_automatic_reconnection(self):
+        from vela.domain import ApplyError
+        self.window.service.disconnect()
+        self.window.operation_finished('apply', None, ApplyError('stopped', completed_writes=1, partial=True))
+        self.assertFalse(self.window._lost)
+        self.assertIn('may contain some changes', self.window.status.text())
+
     def test_battery_warnings_fire_once_per_level_and_rearm(self):
         shown = []
         self.window.notifier.show = lambda title, body='', **kwargs: shown.append(body) or True

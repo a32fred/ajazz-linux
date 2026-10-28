@@ -14,8 +14,8 @@ No public release is recorded by this changelog yet.
 - Scroll wheel light controls (effect, brightness, breathing speed) for the DPI light register, with the layout and hardware observations recorded in [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
 - EEPROM backup before every Apply, a lightweight status poll that tolerates a missed check, automatic reconnect that keeps the local draft, a refusal to remove the last Left click, and a write allowlist of known EEPROM regions.
 - Desktop notification when the DPI stage changes on the mouse (about a second or less) and low-battery warnings at 20 and 10 percent, from reports the mouse sends by itself; switchable under Workspace. The status poll also runs while the window is minimized.
-- `vela --cli restore` to write a `dump` or backup file back with a plan by default, a backup first, verified writes and protection for unknown registers.
-- Linux and Windows packages: `ajazz-linux-cli` (standard library only) and `ajazz-linux` (window, uses the distribution's Qt) as `.rpm` and `.deb`, plus a Windows folder build, produced by `packaging/` scripts and a release workflow. Linux no longer needs the `hidapi` Python package: the transport talks to `/dev/hidraw` directly.
+- `vela --cli restore` (reviewed: whole registers only, same write order and Left click guard as Apply, unknown registers skipped) to write a `dump` or backup file back with a plan by default, a backup first, verified writes and protection for unknown registers.
+- Linux and Windows packages: `ajazz-linux-cli` (standard library only) and `ajazz-linux` (window, uses the distribution's Qt) as `.rpm` and `.deb`, plus an Arch `PKGBUILD` and a Windows folder build, produced by `packaging/` scripts and a release workflow. Linux no longer needs the `hidapi` Python package: the transport talks to `/dev/hidraw` directly.
 - Number fields with large minus/plus buttons, hold-to-repeat and type-to-replace; dark theme with one accent.
 - MIT license, dependency notices, contribution/security/conduct guidance and issue/PR templates.
 

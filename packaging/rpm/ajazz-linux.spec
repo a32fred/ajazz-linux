@@ -11,6 +11,7 @@ BuildRequires:  pyproject-rpm-macros
 BuildRequires:  systemd-rpm-macros
 Requires:       %{name}-cli = %{version}-%{release}
 Requires:       python3-pyside6
+Recommends:     libnotify
 
 # Dependencies are listed by hand: the wheel metadata names the PyPI Qt package, which would pull
 # Qt into the dependency-free cli package and does not match the distribution's python3-pyside6.
@@ -48,6 +49,9 @@ library, plus the udev rule that gives the logged-in user access to the mouse.
 %pyproject_install
 # The wheel's data files are for pip users; this package installs them explicitly.
 rm -rf %{buildroot}%{_datadir}/applications %{buildroot}%{_datadir}/icons %{buildroot}%{_datadir}/doc
+# Only ajazz-linux is installed system-wide; "vela" is a generic name other software uses.
+rm -f %{buildroot}%{_bindir}/vela
+install -Dpm 0644 packaging/linux/io.github.a32fred.ajazz_linux.metainfo.xml %{buildroot}%{_metainfodir}/io.github.a32fred.ajazz_linux.metainfo.xml
 install -Dpm 0644 packaging/linux/70-ajazz-linux.rules %{buildroot}%{_udevrulesdir}/70-ajazz-linux.rules
 install -Dpm 0644 packaging/linux/ajazz-linux.desktop %{buildroot}%{_datadir}/applications/ajazz-linux.desktop
 install -Dpm 0644 packaging/linux/ajazz-linux.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/ajazz-linux.svg
@@ -64,7 +68,6 @@ udevadm trigger --subsystem-match=hidraw --action=add >/dev/null 2>&1 || :
 %exclude %{python3_sitelib}/vela/ui/
 %exclude %{python3_sitelib}/vela/assets/
 %{python3_sitelib}/ajazz_linux-%{version}.dist-info/
-%{_bindir}/vela
 %{_bindir}/ajazz-linux
 %{_udevrulesdir}/70-ajazz-linux.rules
 
@@ -72,6 +75,7 @@ udevadm trigger --subsystem-match=hidraw --action=add >/dev/null 2>&1 || :
 %{python3_sitelib}/vela/ui/
 %{python3_sitelib}/vela/assets/
 %{_datadir}/applications/ajazz-linux.desktop
+%{_metainfodir}/io.github.a32fred.ajazz_linux.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/ajazz-linux.svg
 
 %changelog

@@ -16,6 +16,7 @@ Baixe os arquivos da sua distribuição na [página de versões](https://github.
 | Fedora | `sudo dnf install ./ajazz-linux-cli-*.rpm ./ajazz-linux-0*.rpm` |
 | Debian 13, Ubuntu 25.10 ou mais novo | `sudo apt install ./ajazz-linux-cli_*.deb ./ajazz-linux_*.deb` |
 | Ubuntu 24.04 ou mais antigo | `sudo apt install ./ajazz-linux-cli_*.deb` e, para a janela, `pipx install "git+https://github.com/a32fred/ajazz-linux"` (o Ubuntu 24.04 não traz o Qt 6 para Python) |
+| Arch, CachyOS, Manjaro | `git clone https://github.com/a32fred/ajazz-linux && cd ajazz-linux/packaging/arch && makepkg -si` (compila os dois pacotes a partir da versão publicada) |
 | Outras distribuições | `pipx install "git+https://github.com/a32fred/ajazz-linux"` e depois a regra de acesso da Opção 2, passo 4 |
 
 Os pacotes já instalam a regra de acesso USB e a aplicam a um mouse que esteja conectado, então **não precisa desconectar o cabo**. Abra o **Ajazz Linux** pelo menu de aplicativos, ou rode `ajazz-linux` no terminal, sempre com o seu usuário normal, sem `sudo`. Na janela, clique em **Scan**, escolha o AJ199 e clique em **Read mouse**. Só o botão **Apply to mouse** grava no mouse.

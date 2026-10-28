@@ -34,6 +34,7 @@ Download the files for your system from the [latest release](https://github.com/
 | Fedora | `sudo dnf install ./ajazz-linux-cli-*.rpm ./ajazz-linux-0*.rpm` |
 | Debian 13, Ubuntu 25.10 or newer | `sudo apt install ./ajazz-linux-cli_*.deb ./ajazz-linux_*.deb` |
 | Ubuntu 24.04 or older (no Qt 6 Python bindings in its repositories) | `sudo apt install ./ajazz-linux-cli_*.deb`, then the window: `pipx install "git+https://github.com/a32fred/ajazz-linux"` |
+| Arch, CachyOS, Manjaro | `git clone https://github.com/a32fred/ajazz-linux && cd ajazz-linux/packaging/arch && makepkg -si` (builds both packages from the release tag) |
 | Any other distribution | `pipx install "git+https://github.com/a32fred/ajazz-linux"`, then install the [udev rule](#linux-access-and-desktop-integration) once |
 | Windows 10/11 | unzip `ajazz-linux-windows-x64.zip` and run `ajazz-linux.exe` (the manufacturer's own Windows driver already exists; this build is untested on real hardware) |
 

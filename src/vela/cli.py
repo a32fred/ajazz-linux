@@ -2,22 +2,23 @@
 import argparse
 from dataclasses import asdict
 import json
-from pathlib import Path
 import sys
 
 from .domain import FileFormatError, VelaError
+from .storage import ProfileStore, bounded_read
 from .service import MouseService
 
 
 def _regions(path):
     """Regions from a file written by `dump` or by the Apply backup."""
     try:
-        document = json.loads(Path(path).read_bytes()[:1 << 20])
+        document = json.loads(bounded_read(path, 1 << 20))
         regions = {int(key, 0): bytes.fromhex(value) for key, value in document['regions'].items()}
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, RecursionError, FileFormatError) as exc:
         raise FileFormatError(f'Cannot use {path} as a dump or backup file: {exc}') from exc
-    if not regions or sum(map(len, regions.values())) > 0x10000:
-        raise FileFormatError('The file has no regions or is too large.')
+    spans = sorted((start, start + len(data)) for start, data in regions.items())
+    if not regions or sum(map(len, regions.values())) > 0x10000 or any(a[1] > b[0] for a, b in zip(spans, spans[1:])):
+        raise FileFormatError('The file has no regions, is too large or has overlapping regions.')
     return regions
 
 
@@ -50,8 +51,7 @@ def run(argv=None, *, service_factory=MouseService, stdout=None, stderr=None):
             elif args.command == 'restore':
                 if not args.file:
                     raise VelaError('restore needs --file.')
-                if args.yes:
-                    from .storage import ProfileStore
+                if args.yes and not args.demo:
                     service.backup_dir = ProfileStore().path.parent / 'backups'
                 writes, skipped = service.restore(_regions(args.file), apply=args.yes)
                 document = {'demo': args.demo, 'device': snapshot.device.id, 'written': args.yes,

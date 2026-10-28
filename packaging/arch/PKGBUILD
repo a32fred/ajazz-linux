@@ -1,0 +1,42 @@
+# Maintainer: a32fred <fredericocarlos.a32@gmail.com>
+pkgbase=ajazz-linux
+pkgname=(ajazz-linux-cli ajazz-linux)
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Unofficial Linux settings app for the AJAZZ AJ199 mouse'
+arch=(any)
+url='https://github.com/a32fred/ajazz-linux'
+license=(MIT)
+makedepends=(python-build python-installer python-setuptools python-wheel)
+source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # replace with the real checksum before publishing to the AUR
+
+build() {
+  cd "$pkgbase-$pkgver"
+  python -m build --wheel --no-isolation
+  python -m installer --destdir="$srcdir/stage" dist/*.whl
+}
+
+package_ajazz-linux-cli() {
+  pkgdesc='Command line tools and udev rule for the AJAZZ AJ199 mouse (Python standard library only)'
+  depends=(python)
+  cd "$pkgbase-$pkgver"
+  cp -a "$srcdir/stage/usr" "$pkgdir/usr"
+  # The window, its assets and the wheel's data files belong to the other package.
+  rm -rf "$pkgdir"/usr/lib/python*/site-packages/vela/{ui,assets} "$pkgdir"/usr/share "$pkgdir"/usr/bin/vela
+  install -Dm644 packaging/linux/70-ajazz-linux.rules "$pkgdir/usr/lib/udev/rules.d/70-ajazz-linux.rules"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+package_ajazz-linux() {
+  pkgdesc='Unofficial Linux settings app for the AJAZZ AJ199 mouse: DPI, buttons, macros and scroll light'
+  depends=(ajazz-linux-cli pyside6)
+  optdepends=('libnotify: desktop notifications for DPI changes and low battery')
+  cd "$pkgbase-$pkgver"
+  site=$(cd "$srcdir/stage" && echo usr/lib/python*/site-packages)
+  install -d "$pkgdir/$site/vela"
+  cp -a "$srcdir/stage/$site/vela/ui" "$srcdir/stage/$site/vela/assets" "$pkgdir/$site/vela/"
+  install -Dm644 packaging/linux/ajazz-linux.desktop -t "$pkgdir/usr/share/applications"
+  install -Dm644 packaging/linux/ajazz-linux.svg -t "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+  install -Dm644 packaging/linux/io.github.a32fred.ajazz_linux.metainfo.xml -t "$pkgdir/usr/share/metainfo"
+}

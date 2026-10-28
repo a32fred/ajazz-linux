@@ -172,6 +172,26 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(bytes(self.transport.memory[:0xb9]), saved[:6] + bytes(self.transport.memory[6:8]) + saved[8:0xb9])
         self.assertEqual(bytes(self.transport.memory[6:8]), saved[6:8])
 
+    def test_restore_writes_whole_registers_so_a_failure_never_leaves_a_bad_checksum(self):
+        saved = bytes(self.transport.memory[:0x100])
+        draft = self.draft()
+        draft.stages[0].x = 3200  # changes one byte of a four-byte DPI register
+        self.service.apply(draft)
+        plan, _ = self.service.restore({0: saved})
+        self.assertEqual([(address, len(data)) for address, data in plan], [(0x0c, 4)])
+        self.assertEqual(plan[0][1], saved[0x0c:0x10])
+
+    def test_restore_orders_writes_like_apply_and_refuses_a_dump_without_left_click(self):
+        order = MouseService._write_order({0x60: 1, 0x100: 1, 0x0c: 1, 0x02: 1, 0x04: 1}, shrinking=False)
+        self.assertEqual(order, [0x0c, 0x02, 0x04, 0x100, 0x60])
+        self.assertEqual(MouseService._write_order({0x02: 1, 0x04: 1}, shrinking=True), [0x04, 0x02])
+        no_left = bytearray(self.transport.memory[:0x100])
+        for matrix in (0, 1, 2, 3, 4, 5):
+            no_left[0x60 + 4 * matrix:0x64 + 4 * matrix] = bytes([0, 0, 0, 0x55])
+        with self.assertRaisesRegex(ValidationError, 'no Left click'):
+            self.service.restore({0: bytes(no_left)}, apply=True)
+        self.assertEqual(self.writes(), [])
+
     def test_restore_refuses_bad_settings_partial_blocks_and_ignores_unknown_regions(self):
         saved = bytearray(self.transport.memory[:0x100])
         corrupt = bytearray(saved)
@@ -182,6 +202,13 @@ class ServiceTests(unittest.TestCase):
             self.service.restore({0x20: bytes(saved[0x20:0x40])}, apply=True)
         self.assertEqual(self.service.restore({0xf0: b'\x01\x02\x03\x04'}, apply=True), ([], []))
         self.assertEqual(self.writes(), [])
+
+    def test_disconnect_drops_events_stored_from_the_old_session(self):
+        self.transport._queue.append(bytes.fromhex('09 0a 00 00 00 0a 01 01 01 00 00 00 00 00 00 00 35'))
+        self.service.poll()  # the query stores the report
+        self.service.disconnect()
+        self.service.connect(self.service.scan()[0])
+        self.assertEqual(self.service.pump(), [])
 
     def test_removing_the_last_left_click_is_refused_before_writes(self):
         draft = self.draft()

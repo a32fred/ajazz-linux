@@ -17,12 +17,13 @@ rm -rf $stage/cli/$py/vela/ui $stage/cli/$py/vela/assets
 cp -r /src/src/vela/ui $stage/gui/$py/vela/ui
 cp -r /src/src/vela/assets $stage/gui/$py/vela/assets
 find $stage -name __pycache__ -type d -prune -exec rm -rf {} +
-for name in ajazz-linux vela; do
+for name in ajazz-linux; do
   printf "#!/usr/bin/python3\nimport sys\nfrom vela.app import main\nsys.exit(main())\n" > $stage/cli/usr/bin/$name
   chmod 0755 $stage/cli/usr/bin/$name
 done
 install -m 0644 /src/packaging/linux/70-ajazz-linux.rules $stage/cli/usr/lib/udev/rules.d/
 install -m 0644 /src/packaging/linux/ajazz-linux.desktop $stage/gui/usr/share/applications/
+install -Dm 0644 /src/packaging/linux/io.github.a32fred.ajazz_linux.metainfo.xml $stage/gui/usr/share/metainfo/io.github.a32fred.ajazz_linux.metainfo.xml
 install -m 0644 /src/packaging/linux/ajazz-linux.svg $stage/gui/usr/share/icons/hicolor/scalable/apps/
 for pkg in cli gui; do
   name=ajazz-linux; [ $pkg = cli ] && name=ajazz-linux-cli
@@ -52,6 +53,7 @@ Version: $VERSION
 Architecture: all
 Maintainer: a32fred <fredericocarlos.a32@gmail.com>
 Depends: ajazz-linux-cli (= $VERSION), python3-pyside6.qtcore, python3-pyside6.qtgui, python3-pyside6.qtwidgets, python3-pyside6.qtsvg, python3-pyside6.qtsvgwidgets
+Recommends: libnotify-bin
 Section: utils
 Priority: optional
 Homepage: https://github.com/a32fred/ajazz-linux

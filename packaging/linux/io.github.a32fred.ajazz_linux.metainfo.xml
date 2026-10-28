@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.a32fred.ajazz_linux</id>
+  <name>Ajazz Linux</name>
+  <summary>Unofficial settings for the AJAZZ AJ199 mouse</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>DPI stages and colors, button assignments, macros and the scroll wheel light for the AJAZZ AJ199 mouse, with desktop notifications when the DPI stage changes and when the battery is low.</p>
+    <p>Unofficial and not affiliated with the manufacturer. Writes to the mouse were checked by hand on a single unit, so treat this preview as experimental.</p>
+  </description>
+  <launchable type="desktop-id">ajazz-linux.desktop</launchable>
+  <url type="homepage">https://github.com/a32fred/ajazz-linux</url>
+  <url type="bugtracker">https://github.com/a32fred/ajazz-linux/issues</url>
+  <provides>
+    <binary>ajazz-linux</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-28"/>
+  </releases>
+</component>

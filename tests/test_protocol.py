@@ -144,6 +144,14 @@ class DpiEffectCodecTests(unittest.TestCase):
         self.assertIsNone(decode_dpi_effect(bytes.fromhex('01 54 11 44 03 52 00 55')))  # not a known brightness level
 
 
+class DpiEffectValidationTests(unittest.TestCase):
+    def test_encoding_rejects_a_brightness_outside_the_ten_steps(self):
+        from vela.domain import DpiEffect
+        from vela.protocol import encode_dpi_effect
+        with self.assertRaises(ValidationError):
+            encode_dpi_effect(DpiEffect(1, 0, 3))
+
+
 class NotificationTests(unittest.TestCase):
     # Reports captured from a real AJ199 while pressing the DPI button twice (stage 2 to 0 to 1).
     FIRST = bytes.fromhex('09 0a 00 00 00 0a 01 00 01 00 00 00 00 00 00 00 36')

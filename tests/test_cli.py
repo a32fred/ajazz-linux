@@ -59,6 +59,15 @@ class CliTests(unittest.TestCase):
             self.assertEqual(run(['restore', '--file', root + '/missing.json'], service_factory=Shared, stderr=error), 1)
             self.assertIn('Cannot use', error.getvalue())
 
+    def test_restore_refuses_overlapping_regions(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'overlap.json'
+            path.write_text(json.dumps({'regions': {'0x0000': '00' * 16, '0x0008': '00' * 16}}))
+            error = io.StringIO()
+            self.assertEqual(run(['restore', '--demo', '--file', str(path)], stderr=error), 1)
+            self.assertIn('overlapping', error.getvalue())
+
     def test_status_requires_selection_if_multiple_devices(self):
         class Multiple(MouseService):
             def __init__(self, demo=False):
