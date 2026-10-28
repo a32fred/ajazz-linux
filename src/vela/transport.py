@@ -1,4 +1,4 @@
-"""Lazy HIDAPI adapter and conservative, non-probing collection discovery.
+"""HID adapter (hidraw on Linux, hidapi elsewhere) and conservative, non-probing collection discovery.
 
 HIDAPI's Python binding supplies usage metadata but usually no report lengths.
 Linux sysfs descriptors provide the shared-hidraw collection fallback. On Windows
@@ -103,11 +103,15 @@ class HidTransport:
 
     def _api(self):
         if self._hid is None:
-            try:
-                # libusb paths lack the hidraw descriptors and uaccess permissions.
-                self._hid = importlib.import_module('hidraw' if sys.platform == 'linux' else 'hid')
-            except (ImportError, OSError) as exc:
-                raise DeviceError('Install the hidapi Python package and the system HIDAPI library.') from exc
+            if sys.platform == 'linux':
+                # Standard library only; libusb paths would lack the hidraw descriptors and uaccess permissions.
+                from .hidraw import Hidraw
+                self._hid = Hidraw()
+            else:
+                try:
+                    self._hid = importlib.import_module('hid')
+                except (ImportError, OSError) as exc:
+                    raise DeviceError('Install the hidapi Python package and the system HIDAPI library.') from exc
         return self._hid
 
     def scan(self):

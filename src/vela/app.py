@@ -17,7 +17,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.screenshot and not args.demo:
         parser.error('--screenshot requires --demo; preview never opens a physical mouse')
-    from PySide6.QtCore import QElapsedTimer, QTimer
+    from PySide6.QtCore import QCoreApplication, QElapsedTimer, QEvent, QTimer
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
     from .storage import ProfileStore
@@ -53,4 +53,8 @@ def main(argv=None):
         timer.timeout.connect(capture)
         timer.start(100)
     result = app.exec()
+    # Destroy the window and its I/O thread now, while the QApplication still exists; leaving it to
+    # interpreter shutdown can free Qt objects after the application and corrupt memory.
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     return preview_result or result

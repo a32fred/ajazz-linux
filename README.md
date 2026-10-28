@@ -1,6 +1,6 @@
 # Ajazz Linux
 
-**[Portugu?s: instala??o passo a passo](README.pt-BR.md)**
+**[Português: instalação passo a passo](README.pt-BR.md)**
 
 <img src="src/vela/assets/vela.svg" alt="Vela sail logo" width="72">
 
@@ -22,7 +22,26 @@ The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical d
 
 ## Install and launch
 
-There is no RPM, Flatpak or one-click installer yet. Install from this repository using the steps below. You do not need a GitHub account or a developer setup.
+### Install from a package (recommended)
+
+Download the files for your system from the [latest release](https://github.com/a32fred/ajazz-linux/releases) (a pre-release for now). Two packages exist so that nothing you do not use is installed:
+
+- **`ajazz-linux-cli`**: the command line tools and the udev rule. It needs only Python 3.10 or newer, no other packages, and works on any distribution.
+- **`ajazz-linux`**: the window. It adds the desktop entry and uses the Qt that your distribution already provides, so it adds well under 1 MB instead of a bundled copy of Qt.
+
+| System | Command |
+|---|---|
+| Fedora | `sudo dnf install ./ajazz-linux-cli-*.rpm ./ajazz-linux-0*.rpm` |
+| Debian 13, Ubuntu 25.10 or newer | `sudo apt install ./ajazz-linux-cli_*.deb ./ajazz-linux_*.deb` |
+| Ubuntu 24.04 or older (no Qt 6 Python bindings in its repositories) | `sudo apt install ./ajazz-linux-cli_*.deb`, then the window: `pipx install "git+https://github.com/a32fred/ajazz-linux"` |
+| Any other distribution | `pipx install "git+https://github.com/a32fred/ajazz-linux"`, then install the [udev rule](#linux-access-and-desktop-integration) once |
+| Windows 10/11 | unzip `ajazz-linux-windows-x64.zip` and run `ajazz-linux.exe` (the manufacturer's own Windows driver already exists; this build is untested on real hardware) |
+
+The packages install the udev rule and apply it to a mouse that is already plugged in, so you do not need to replug it. Run the app as your normal user, not with `sudo`. Package installs were checked in clean containers (Fedora 44, Debian 13, Ubuntu 22.04 and 24.04); using them with a real mouse is as untested as the rest of this preview. The `.deb` and `.rpm` files are built from this repository by `packaging/build-deb.sh` and `packaging/build-rpm.sh`.
+
+### Install from the source code
+
+If there is no package for your system, install from this repository using the steps below. You do not need a GitHub account or a developer setup.
 
 ### Fedora Workstation / KDE: start here
 
@@ -59,7 +78,7 @@ sh "$HOME/ajazz-linux/run-vela" --demo
 
 ```sh
 cd "$HOME/ajazz-linux"
-sudo install -m 644 packaging/linux/70-vela.rules /etc/udev/rules.d/70-vela.rules
+sudo install -m 644 packaging/linux/70-ajazz-linux.rules /etc/udev/rules.d/70-ajazz-linux.rules
 sudo udevadm control --reload-rules
 ```
 
@@ -83,7 +102,7 @@ git pull --ff-only
 
 ### Other Linux distributions
 
-Install Git, Python 3.10+ with `venv`/pip, and the Qt runtime libraries through your distribution's package manager. Package names differ; do not run Fedora's `dnf` command on another distribution. Then follow Fedora steps 2?4 above, which use the same repository and launcher. If you extracted a source archive, enter its folder instead of cloning and adjust the launcher path accordingly. PySide6/HIDAPI must provide compatible binaries for your Python version and architecture.
+Install Git, Python 3.10+ with `venv`/pip, and the Qt runtime libraries through your distribution's package manager. Package names differ; do not run Fedora's `dnf` command on another distribution. Then follow Fedora steps 2 to 4 above, which use the same repository and launcher. If you extracted a source archive, enter its folder instead of cloning and adjust the launcher path accordingly. PySide6/HIDAPI must provide compatible binaries for your Python version and architecture.
 
 ### Windows preview
 
@@ -107,7 +126,7 @@ py -3 -m venv .venv
 | Demo opens but real mode reports permission denied | Complete step 4 and physically reconnect the cable in your active desktop session. Do not run the GUI as root. |
 | Scan finds no supported device | Check the cable and connection. The supplied rules match USB IDs `25a7:fa7b` and `25a7:fa7c`; other IDs are unconfirmed. |
 
-[Fedora Python/pip guidance](https://developer.fedoraproject.org/tech/languages/python/pypi-installation.html) ? [Fedora EGL package](https://packages.fedoraproject.org/pkgs/libglvnd/libglvnd-egl/) ? [Fedora XCB cursor package](https://packages.fedoraproject.org/pkgs/xcb-util-cursor/)
+[Fedora Python/pip guidance](https://developer.fedoraproject.org/tech/languages/python/pypi-installation.html) · [Fedora EGL package](https://packages.fedoraproject.org/pkgs/libglvnd/libglvnd-egl/) · [Fedora XCB cursor package](https://packages.fedoraproject.org/pkgs/xcb-util-cursor/)
 
 ## Use
 
@@ -147,10 +166,10 @@ The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on a
 
 ## Linux access and desktop integration
 
-The optional [udev rules](packaging/linux/70-vela.rules) grant active-seat access only to HID devices `25a7:fa7b` and `25a7:fa7c`. Review before installing. These commands require administrator privileges and are **not** run by Ajazz Linux:
+The optional [udev rules](packaging/linux/70-ajazz-linux.rules) grant active-seat access only to HID devices `25a7:fa7b` and `25a7:fa7c`. Review before installing. These commands require administrator privileges and are **not** run by Ajazz Linux:
 
 ```sh
-sudo install -m 644 packaging/linux/70-vela.rules /etc/udev/rules.d/70-vela.rules
+sudo install -m 644 packaging/linux/70-ajazz-linux.rules /etc/udev/rules.d/70-ajazz-linux.rules
 sudo udevadm control --reload-rules
 # Replug the mouse, then run Ajazz Linux as your normal desktop user.
 ```
@@ -163,9 +182,9 @@ For a per-user launcher, from the repository root:
 
 ```sh
 mkdir -p "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/scalable/apps"
-install -m 644 src/vela/assets/vela.svg "$HOME/.local/share/icons/hicolor/scalable/apps/vela.svg"
+install -m 644 packaging/linux/ajazz-linux.svg "$HOME/.local/share/icons/hicolor/scalable/apps/ajazz-linux.svg"
 # Use the absolute venv executable, so no activated shell is needed.
-sed "s|^Exec=.*|Exec=\"$PWD/.venv/bin/vela\"|" packaging/linux/vela.desktop > "$HOME/.local/share/applications/vela.desktop"
+sed "s|^Exec=.*|Exec=\"$PWD/.venv/bin/vela\"|" packaging/linux/ajazz-linux.desktop > "$HOME/.local/share/applications/ajazz-linux.desktop"
 ```
 
 Keep the repository/venv at that location, or update the launcher after moving it. Installation packages may use the provided desktop file unchanged when `vela` is installed on the desktop's PATH. Uninstall by removing the copied desktop/icon/rules and the virtual environment; local workspace data remains until you remove it.

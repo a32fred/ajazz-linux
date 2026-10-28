@@ -1,5 +1,5 @@
 include README.md README.pt-BR.md LICENSE THIRD_PARTY_NOTICES.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md CHANGELOG.md run-vela run-vela.cmd
-recursive-include packaging *.rules *.desktop
+recursive-include packaging *.rules *.desktop *.svg *.spec *.sh
 recursive-include docs *.md *.png
 recursive-include tests *.py
 prune .superdesign

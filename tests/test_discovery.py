@@ -62,14 +62,14 @@ class FakeHid:
 class DiscoveryTests(unittest.TestCase):
     def test_linux_uses_hidraw_backend_for_real_device_discovery(self):
         api = FakeHid([row(b'/dev/hidraw5', 0, 0, '')])
-        with patch('sys.platform', 'linux'), patch(
-                'vela.transport.importlib.import_module',
-                side_effect=lambda name: api if name == 'hidraw' else FakeHid([])) as load:
+        with patch('sys.platform', 'linux'), patch('vela.hidraw.Hidraw', return_value=api) as backend, patch(
+                'vela.transport.importlib.import_module') as load:
             devices = HidTransport(descriptor_reader=lambda path: DESCRIPTOR).scan()
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0].command_path, b'/dev/hidraw5')
         self.assertIn('USB cable', devices[0].name)
-        load.assert_called_once_with('hidraw')
+        backend.assert_called_once_with()
+        load.assert_not_called()  # Linux needs no third-party HID package
 
     def test_windows_keeps_hid_backend(self):
         api = FakeHid([row(b'cmd', 0xff02, 2), row(b'in', 0xff01, 0)])
@@ -129,7 +129,7 @@ class DiscoveryTests(unittest.TestCase):
                 descriptor_collections(bad)
 
     def test_missing_hidapi_is_actionable(self):
-        with patch('vela.transport.importlib.import_module', side_effect=ImportError('missing')):
+        with patch('sys.platform', 'win32'), patch('vela.transport.importlib.import_module', side_effect=ImportError('missing')):
             with self.assertRaisesRegex(DeviceError, 'hidapi'):
                 HidTransport().scan()
 

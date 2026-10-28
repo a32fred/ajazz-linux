@@ -17,7 +17,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 requires-python = ">=3.10"
-dependencies = ["PySide6-Essentials>=6.8,<7", "hidapi>=0.14,<1"]
+dependencies = ["PySide6-Essentials>=6.8,<7", "hidapi>=0.14,<1; sys_platform != 'linux'"]
 
 [project.urls]
 Repository = "https://github.com/a32fred/ajazz-linux"
@@ -34,6 +34,6 @@ where = ["src"]
 vela = ["assets/*"]
 
 [tool.setuptools.data-files]
-"share/applications" = ["packaging/linux/vela.desktop"]
-"share/icons/hicolor/scalable/apps" = ["src/vela/assets/vela.svg"]
-"share/doc/vela" = ["packaging/linux/70-vela.rules", "THIRD_PARTY_NOTICES.md"]
+"share/applications" = ["packaging/linux/ajazz-linux.desktop"]
+"share/icons/hicolor/scalable/apps" = ["packaging/linux/ajazz-linux.svg"]
+"share/doc/ajazz-linux" = ["packaging/linux/70-ajazz-linux.rules", "THIRD_PARTY_NOTICES.md"]
