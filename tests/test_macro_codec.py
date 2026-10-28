@@ -6,10 +6,10 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
-from vela.domain import Binding, Macro, MacroEvent, MouseSettings, ValidationError
+from vela.domain import Binding, Macro, MacroEvent, ValidationError
 from vela.protocol import encode_macro, decode_macro, encode_combination, decode_combination
 from vela.service import MouseService
-from vela.domain import default_workspace, DeviceError
+from vela.domain import default_workspace
 from vela.storage import ProfileStore
 
 

@@ -1,9 +1,5 @@
-"""Minimal Linux hidraw backend that needs nothing outside the standard library.
-
-It offers the small part of the hidapi API the transport uses: enumerate() and a device with
-open_path(), set_nonblocking(), send_feature_report(), read() and close(). Everything is
-non-blocking; read() waits with select(), so a read can never hang.
-"""
+"""Linux hidraw backend using only the standard library: the part of the hidapi API the transport
+uses. Reads wait with select(), so they never hang."""
 import fcntl
 import os
 from pathlib import Path

@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from vela.domain import Binding, DpiStage, LightingSettings, MouseSettings, ApplyError, DeviceError, ProtocolError, ValidationError
+from vela.domain import Binding, DpiStage, LightingSettings, ApplyError, DeviceError, ProtocolError, ValidationError
 from vela.protocol import ProtocolClient
 from vela.simulator import SimulatedTransport
 from vela.service import MouseService

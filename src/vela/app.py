@@ -53,8 +53,8 @@ def main(argv=None):
         timer.timeout.connect(capture)
         timer.start(100)
     result = app.exec()
-    # Destroy the window and its I/O thread now, while the QApplication still exists; leaving it to
-    # interpreter shutdown can free Qt objects after the application and corrupt memory.
+    # Free the window and its I/O thread while the QApplication still exists; interpreter shutdown
+    # can free them after it and corrupt memory.
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     return preview_result or result

@@ -261,12 +261,10 @@ class MouseService:
             return snapshot
 
     def restore(self, regions, apply=False):
-        """Plan, and with apply=True perform, writing saved EEPROM bytes back.
+        """Plan, and with apply=True write, saved EEPROM bytes (address to bytes) back.
 
-        `regions` maps an address to bytes (a dump or a backup file). Only known regions are
-        considered, only differing bytes are written, unknown registers are skipped, and a settings
-        block with bad checksums is refused. Returns (writes, skipped) as lists of (address, bytes).
-        """
+        Only known regions and differing bytes count, unknown registers are skipped, and a settings
+        block with bad checksums is refused. Returns (writes, skipped) as lists of (address, bytes)."""
         with self._lock:
             if not self.connected:
                 raise DeviceError('Connect a mouse first.')

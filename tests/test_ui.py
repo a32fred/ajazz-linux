@@ -28,10 +28,8 @@ from vela.ui.window import MainWindow
 APP = QApplication.instance() or QApplication([])
 
 if sys.version_info < (3, 12):
-    # On Python 3.10 and 3.11, with every PySide6 release tried (6.8 to 6.12), a process that has created
-    # three or more MainWindow fixtures aborts while the interpreter finalizes, after every test has
-    # passed (heap corruption in type_clear). The application itself is not affected: it exits cleanly
-    # on those versions. Report the real result and skip the faulty finalization instead.
+    # Python 3.10 and 3.11 abort in interpreter finalization after three MainWindow fixtures, with every
+    # PySide6 tried; the app exits cleanly. Report the real result and skip that finalization.
     _run = unittest.TextTestRunner.run
 
     def _run_and_exit_cleanly(self, test):

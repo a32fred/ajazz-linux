@@ -19,7 +19,7 @@ from .buttons import ButtonsPage
 from .macros import MacrosPage
 from .theme import STYLE, VelaStyle
 from .notify import Notifier
-from .widgets import label, button, row
+from .widgets import label, button
 
 
 class MainWindow(QMainWindow):
@@ -111,8 +111,6 @@ class MainWindow(QMainWindow):
         logo.setAccessibleName('Vela sail logo')
         top_row.addWidget(logo)
         top_row.addWidget(label('Ajazz Linux', 'heading'))
-        self.page_title = label('Sensitivity', 'title')
-        self.page_title.hide()
         top_row.addStretch()
         self.device_summary = label('No mouse connected', 'muted')
         self.device_summary.setWordWrap(False)
@@ -222,7 +220,6 @@ class MainWindow(QMainWindow):
     def change_page(self, index):
         self.macros.stop_recording()
         self.pages.setCurrentIndex(index)
-        self.page_title.setText(('Sensitivity', 'Buttons', 'Lighting', 'Macros')[index])
         if index == 1:
             self.buttons.load(self.draft, self.workspace.macros)
 
@@ -374,8 +371,7 @@ class MainWindow(QMainWindow):
     def check_battery(self, percent, charging):
         """Warn once at 20 percent and once at 10 percent; charging or recovery re-arms the warnings."""
         if percent is None or charging or percent >= 30:
-            if percent is None or charging or percent >= 30:
-                self._battery_alert = None
+            self._battery_alert = None
             return
         for level in (10, 20):
             if percent <= level and (self._battery_alert is None or self._battery_alert > level):

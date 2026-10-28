@@ -83,11 +83,8 @@ class LightingSettings:
 
 @dataclass
 class DpiEffect:
-    """Light on the scroll wheel that shows the active DPI stage color (EEPROM 0x4C).
-
-    Brightness is a step 1..10; mode and param are kept as the mouse reported them
-    because their meanings are not established.
-    """
+    """Scroll wheel light (EEPROM 0x4C): brightness step 1..10; mode and param are as the mouse
+    reported them, because only modes 0 to 2 and breathing speed 1 to 8 are known."""
     mode: int = 1
     brightness: int = 10
     param: int = 3

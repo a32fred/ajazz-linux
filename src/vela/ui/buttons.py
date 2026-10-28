@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
 from ..domain import Binding, ValidationError
 from ..protocol import DIRECT_ACTIONS, CONSUMER_USAGES, encode_combination
 from .keys import hid_key, key_name
-from .widgets import card, button, label, combo, row
+from .widgets import card, button, label, combo
 
 
 def binding_text(binding, macros):

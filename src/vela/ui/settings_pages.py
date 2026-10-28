@@ -2,8 +2,7 @@
 import copy
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPixmap
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QCheckBox, QSlider, QColorDialog, QFormLayout)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QSlider, QColorDialog, QFormLayout)
 
 from .widgets import label, button, combo, spin, card, row
 
@@ -257,14 +256,12 @@ class LightingPage(QWidget):
             widget.setEnabled(effect is not None)
         if effect is None:
             return
-        # A mode this app has not seen light up is kept as the mouse reported it.
-        known = self.dpi_mode.findData(effect.mode)
-        if known == -1:
-            self.dpi_mode.addItem(f'Mode {effect.mode} (as reported)', effect.mode)
-            known = self.dpi_mode.findData(effect.mode)
+        # A mode this app has not seen light up is kept exactly as the mouse reported it.
         for index in reversed(range(self.dpi_mode.count())):
-            if self.dpi_mode.itemData(index) not in (0, 1, 2, effect.mode):
+            if self.dpi_mode.itemData(index) not in (0, 1, 2):
                 self.dpi_mode.removeItem(index)
+        if self.dpi_mode.findData(effect.mode) == -1:
+            self.dpi_mode.addItem(f'Mode {effect.mode} (as reported)', effect.mode)
         self.dpi_mode.setCurrentIndex(self.dpi_mode.findData(effect.mode))
         self.dpi_brightness.setValue(effect.brightness)
         self.dpi_speed.setValue(min(max(effect.param, 1), 8))

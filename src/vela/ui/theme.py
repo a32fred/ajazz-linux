@@ -1,8 +1,4 @@
-"""Vela palette: ink-dark instrument surfaces with one sail-teal accent.
-
-Dark because the app sits next to games and the mouse's own software category is dark.
-The accent is the teal of the Vela sail mark and marks only the active or primary state.
-"""
+"""Ink-dark surfaces with one accent, the teal of the sail logo, marking only the active or primary state."""
 from pathlib import Path
 from string import Template
 
@@ -111,7 +107,4 @@ QScrollBar:vertical { background: $BG; width: 10px; }
 QScrollBar::handle:vertical { background: $BORDER_STRONG; min-height: 24px; border-radius: 4px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
 QToolTip { color: $TEXT; background: $RAISED; border: 1px solid $BORDER_STRONG; }
-''').substitute(BG=BG, PANEL=PANEL, RAISED=RAISED, FIELD=FIELD, BORDER=BORDER, BORDER_STRONG=BORDER_STRONG,
-                   TEXT=TEXT, MUTED=MUTED, DISABLED=DISABLED, ACCENT=ACCENT, ACCENT_TEXT=ACCENT_TEXT,
-                   ACCENT_DIM=ACCENT_DIM, WARN=WARN, ERROR=ERROR,
-                   ASSETS=(Path(__file__).parents[1] / 'assets').as_posix())
+''').substitute(globals(), ASSETS=(Path(__file__).parents[1] / 'assets').as_posix())

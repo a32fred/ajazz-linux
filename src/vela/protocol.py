@@ -292,11 +292,8 @@ def settings_records(settings, existing=None, include_bindings=True):
 
 
 def decode_notification(raw):
-    """Events in an unsolicited report (id 9, command 0x0A); [] for anything else.
-
-    Bit 0 is the active DPI stage, observed on hardware. The other bits come from the vendor
-    driver's dispatch and have not been triggered, so they are reported by bit number only.
-    """
+    """Events in an unsolicited report (id 9, command 0x0A). Bit 0 is the DPI stage, seen on hardware;
+    the other bits come from the vendor driver, were never triggered, and are named by bit."""
     raw = bytes(raw)
     if len(raw) < 11 or raw[0] != 9 or raw[1] != 0x0a:
         return []
@@ -324,7 +321,7 @@ def encode_dpi_effect(effect):
 
 
 def decode_dpi_effect(raw):
-    """Return None for a record the mouse never initialized or that this app does not understand."""
+    """None for a record the mouse never initialized or that this app does not understand."""
     raw = bytes(raw)
     if len(raw) != 8 or any((raw[i] + raw[i + 1]) & 255 != 0x55 for i in range(0, 8, 2)):
         return None

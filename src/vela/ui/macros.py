@@ -4,7 +4,7 @@ from pathlib import Path
 import secrets
 import time
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QLineEdit, QListWidget,
+from PySide6.QtWidgets import (QWidget, QBoxLayout, QLineEdit, QListWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QPlainTextEdit, QFileDialog, QCheckBox)
 from ..domain import Macro, MacroEvent, ValidationError
 from ..formats import load_macro, save_macro

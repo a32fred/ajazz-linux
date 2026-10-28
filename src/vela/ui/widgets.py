@@ -45,10 +45,9 @@ class _Field(QLineEdit):
 
 
 class Stepper(QWidget):
-    """Number input: large minus/plus buttons that repeat while held, and a field to type into.
+    """Number input with large minus/plus buttons that repeat while held and a field to type into.
 
-    Up/Down step by one, PageUp/PageDown by ten; the wheel steps only while the field has focus.
-    """
+    The wheel steps only while the field has focus, so scrolling a page never changes a value."""
     valueChanged = Signal(int)
 
     def __init__(self, minimum, maximum, name, suffix=''):
@@ -117,7 +116,10 @@ class Stepper(QWidget):
 
     def _commit(self):
         text = self.field.text().strip()
-        self.setValue(int(text)) if text.lstrip('-').isdigit() else self._show()
+        if text.isdigit():
+            self.setValue(int(text))
+        else:
+            self._show()
 
     def changeEvent(self, event):
         super().changeEvent(event)
