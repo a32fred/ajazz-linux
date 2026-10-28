@@ -10,7 +10,7 @@ def main(argv=None):
         from .cli import run
         argv.remove('--cli')
         return run(argv)
-    parser = argparse.ArgumentParser(prog='vela', description='Vela Mouse Studio — native AJ199 settings')
+    parser = argparse.ArgumentParser(prog='vela', description='Ajazz Linux — native AJ199 settings')
     parser.add_argument('--demo', action='store_true', help='Auto-connect the labeled local simulator')
     parser.add_argument('--workspace', type=Path, help='Directory for native workspace storage')
     parser.add_argument('--screenshot', type=Path, help='Save a demo preview PNG then exit (requires --demo)')
@@ -23,7 +23,7 @@ def main(argv=None):
     from .storage import ProfileStore
     from .ui.window import MainWindow
     app = QApplication.instance() or QApplication([sys.argv[0]])
-    app.setApplicationName('Vela Mouse Studio')
+    app.setApplicationName('Ajazz Linux')
     app.setOrganizationName('Vela')
     app.setWindowIcon(QIcon(str(Path(__file__).parent / 'assets' / 'vela.svg')))
     window = MainWindow(demo=args.demo, store=ProfileStore(args.workspace))

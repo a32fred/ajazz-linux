@@ -44,7 +44,7 @@ class MainWindow(QMainWindow):
         self._startup_autoconnect = True
         self._lost = False
         self.notifier = Notifier()
-        self.notifier.enabled = QSettings('Vela', 'Vela Mouse Studio').value('notifications', True, type=bool)
+        self.notifier.enabled = QSettings('ajazz-linux', 'ajazz-linux').value('notifications', True, type=bool)
         self._battery_alert = None
         self.pumping = False
         self._reconnect_tick = 0
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
             self.workspace = default_workspace()
             self.load_error = str(exc)
         self.draft = copy.deepcopy(self.workspace.profiles[self.workspace.selected_profile].settings)
-        self.setWindowTitle('Vela Mouse Studio' + (' — Demo' if demo else ''))
+        self.setWindowTitle('Ajazz Linux' + (' — Demo' if demo else ''))
         self.setWindowIcon(QIcon(str(Path(__file__).parents[1] / 'assets' / 'vela.svg')))
         self.resize(1100, 800)
         self.setMinimumSize(800, 580)
@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
         logo.setFixedSize(26, 30)
         logo.setAccessibleName('Vela sail logo')
         top_row.addWidget(logo)
-        top_row.addWidget(label('Vela Mouse Studio', 'heading'))
+        top_row.addWidget(label('Ajazz Linux', 'heading'))
         self.page_title = label('Sensitivity', 'title')
         self.page_title.hide()
         top_row.addStretch()
@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
 
     def set_notifications(self, enabled):
         self.notifier.enabled = enabled
-        QSettings('Vela', 'Vela Mouse Studio').setValue('notifications', enabled)
+        QSettings('ajazz-linux', 'ajazz-linux').setValue('notifications', enabled)
 
     def pump_device(self):
         if self.snapshot is not None and not self.busy and not self.closing and not self.polling and not self.pumping:
@@ -676,14 +676,15 @@ class MainWindow(QMainWindow):
             self.set_status(message)
 
     def show_about(self):
-        QMessageBox.about(self, 'About Vela',
-            'Vela Mouse Studio 0.1.0\n\nIndependent native AJ199 configuration. Original Vela identity; implementation from a written behavioral specification.\n\n'
-            'Demo uses the same report service with in-memory hardware. Real hardware writes have not been validated. '
+        QMessageBox.about(self, 'About Ajazz Linux',
+            'Ajazz Linux 0.1.0\n\nIndependent, unofficial configuration utility for the AJAZZ AJ199 mouse on Linux. '
+            'Not affiliated with or endorsed by the manufacturer. The sail logo is the original Vela mark.\n\n'
+            'Demo uses the same report service with in-memory hardware. Writes were checked by hand on one AJ199 only. '
             'Firmware updates and unknown sensor features are unavailable.\n\n'
             'Profiles are local drafts, not proven independent device banks. Macro recording captures only the focused area; '
             'logical keys follow your layout and modifier sides are not distinguished.\n\n'
             'Shutdown waits for current I/O and closes the handle. An indefinitely blocked OS HID call cannot be safely cancelled.\n\n'
-            'MIT license for Vela; Qt/PySide6 and HIDAPI retain their own licenses. See README and dependency notices.')
+            'MIT license; Qt/PySide6 and HIDAPI retain their own licenses. See README and dependency notices.')
 
     def closeEvent(self, event):
         if self.thread_stopped:

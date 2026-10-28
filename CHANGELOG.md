@@ -21,6 +21,6 @@ No public release is recorded by this changelog yet.
 ### Validation and known limits
 
 - Recorded local verification: 97 tests passed on Windows, plus source/wheel builds and demo CLI/native screenshots.
-- Ubuntu 24.04 headless CI passed 97 tests, builds and demo rendering with Python 3.10 and 3.13 ([run](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815)). Live desktops/udev integration, physical hardware writes, macro playback and persistence remain unvalidated.
+- Ubuntu 24.04 headless CI passed 97 tests, builds and demo rendering with Python 3.10 and 3.13 ([run](https://github.com/a32fred/ajazz-linux/actions/runs/40155183815)). Live desktops/udev integration, physical hardware writes, macro playback and persistence remain unvalidated.
 - Legacy exports are limited to confirmed layouts; a fresh default profile cannot export to JMA. Native JSON supports the local domain. See [compatibility details](docs/reference/FORMAT_COMPATIBILITY.md).
 - Native HID calls can stall beyond an application-controlled timeout. Local saves are explicit; concurrent instances do not merge changes.

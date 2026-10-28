@@ -4,7 +4,7 @@
 
 The installed hidapi wheel exposes `hid` (libusb) and `hidraw` backends. The
 libusb enumeration returned USB interface paths and zero usage metadata, so
-Vela's descriptor-based discovery returned no devices. Linux now explicitly
+Ajazz Linux's descriptor-based discovery returned no devices. Linux now explicitly
 loads `hidraw`; other platforms retain `hid`.
 
 On Fedora 44, discovery found both 25a7:fa7b (wired mouse) and 25a7:fa7c
@@ -110,18 +110,18 @@ The public source snapshot is derived from locally verified application code, on
 | Native layouts | Inspected at 1100x800, 1024x720 and 800x580; scrolling content, persistent actions |
 | `python -m build` | Isolated source distribution and wheel builds passed; rebuilt for delivery |
 | Extracted-wheel CLI | Fresh `python -S` process imported extracted package and returned demo JSON |
-| Packaging | Exact original Vela SVG, Linux desktop/rules, source docs; no research binaries, virtualenv or development artifacts |
-| Git | Clean source snapshot published to a32fred/vela-mouse-studio; private development history omitted |
+| Packaging | Exact original Ajazz Linux SVG, Linux desktop/rules, source docs; no research binaries, virtualenv or development artifacts |
+| Git | Clean source snapshot published to a32fred/ajazz-linux; private development history omitted |
 
 Tests cover report/checksum vectors, Linux shared-HID discovery fixtures, bounded command matching, simulated readback and partial failure, macro/combination bounds, independently packed legacy fixtures, strict/atomic native persistence, GUI draft/apply, restart persistence, macro identities/restoration, profile-scoped export, focused recording and ordinary slow-worker shutdown. All device execution used fake HID APIs or the simulator. No physical mouse was enumerated, opened or written during implementation verification.
 
-The public behavioral reference has SHA256 `41c1d26392176e1dcb811816aea8ef1e1131f48a89b4ffc42e83d90d39e837dd`. Only personal paths and the public-edition notice differ from the original analysis reference. Original packaged Vela SVG SHA256: `f9627b398efac0fc2393fcc2f0beb1d6df25a65d1500f738d08d1376e99f2869`.
+The public behavioral reference has SHA256 `41c1d26392176e1dcb811816aea8ef1e1131f48a89b4ffc42e83d90d39e837dd`. Only personal paths and the public-edition notice differ from the original analysis reference. Original packaged Ajazz Linux SVG SHA256: `f9627b398efac0fc2393fcc2f0beb1d6df25a65d1500f738d08d1376e99f2869`.
 
 Final whole-branch review findings were corrected and scoped re-review found no remaining issue. The additional readback-cache regression preserves unapplied local edits separately from actual device macro bodies.
 
 ## Linux CI verification
 
-[GitHub Actions run](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815) passed on Ubuntu 24.04 with Python 3.10 (97 tests, 3.461 seconds) and Python 3.13 (97 tests, 3.306 seconds). Both jobs also built source/wheel distributions, ran the demo CLI, rendered an offscreen Qt demo and uploaded artifacts. The Linux screenshot was downloaded and visually inspected. CI used no physical mouse.
+[GitHub Actions run](https://github.com/a32fred/ajazz-linux/actions/runs/40155183815) passed on Ubuntu 24.04 with Python 3.10 (97 tests, 3.461 seconds) and Python 3.13 (97 tests, 3.306 seconds). Both jobs also built source/wheel distributions, ran the demo CLI, rendered an offscreen Qt demo and uploaded artifacts. The Linux screenshot was downloaded and visually inspected. CI used no physical mouse.
 
 ## Remaining limits
 

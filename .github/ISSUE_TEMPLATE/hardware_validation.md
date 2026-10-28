@@ -7,7 +7,7 @@ Hardware writes are optional. Report read-only or simulator results if that is a
 
 ### Environment
 
-- Vela version/commit:
+- Ajazz Linux version/commit:
 - Linux distro/version, architecture and kernel:
 - Python/Qt versions; X11/Wayland:
 - Mouse model and VID/PID (omit serial):

@@ -1,10 +1,10 @@
-# Contributing to Vela
+# Contributing to Ajazz Linux
 
-Vela is an independent compatibility utility in early development. Read the [README](README.md), [validation limits](docs/VALIDATION.md) and [format compatibility](docs/reference/FORMAT_COMPATIBILITY.md) before proposing changes.
+Ajazz Linux is an independent compatibility utility in early development. Read the [README](README.md), [validation limits](docs/VALIDATION.md) and [format compatibility](docs/reference/FORMAT_COMPATIBILITY.md) before proposing changes.
 
 ## Reports and proposals
 
-Use the issue templates for bugs, feature proposals or optional hardware validation when the repository is hosted. Include the Vela version/commit, Python and Qt versions, OS/session type, connection type and whether the result came from demo mode or a real device. Give reproducible steps and expected/actual behavior. Remove serial numbers, usernames, private paths and macro contents you do not want published. Follow [SECURITY.md](SECURITY.md) for vulnerabilities.
+Use the issue templates for bugs, feature proposals or optional hardware validation when the repository is hosted. Include the Ajazz Linux version/commit, Python and Qt versions, OS/session type, connection type and whether the result came from demo mode or a real device. Give reproducible steps and expected/actual behavior. Remove serial numbers, usernames, private paths and macro contents you do not want published. Follow [SECURITY.md](SECURITY.md) for vulnerabilities.
 
 Check existing issues first. For a large behavior or protocol change, explain the evidence and proposed interface before implementing it. Do not claim broad Linux or device support from simulator results.
 

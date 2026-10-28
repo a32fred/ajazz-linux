@@ -3,10 +3,10 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vela-mouse-studio"
+name = "ajazz-linux"
 version = "0.1.0"
-description = "Independent native AJ199 mouse configuration utility"
-keywords = ["mouse", "hid", "aj199", "qt", "linux"]
+description = "Unofficial Linux settings app for the AJAZZ AJ199 mouse: DPI, buttons, macros and scroll light, with a CLI to back up and restore"
+keywords = ["ajazz", "aj199", "mouse", "gaming mouse", "driver", "dpi", "rgb", "macro", "hid", "hidraw", "udev", "qt", "linux"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
@@ -20,11 +20,12 @@ requires-python = ">=3.10"
 dependencies = ["PySide6-Essentials>=6.8,<7", "hidapi>=0.14,<1"]
 
 [project.urls]
-Repository = "https://github.com/a32fred/vela-mouse-studio"
-Issues = "https://github.com/a32fred/vela-mouse-studio/issues"
+Repository = "https://github.com/a32fred/ajazz-linux"
+Issues = "https://github.com/a32fred/ajazz-linux/issues"
 
 [project.scripts]
 vela = "vela.app:main"
+ajazz-linux = "vela.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

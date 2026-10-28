@@ -1,6 +1,6 @@
-# Vela file and binding compatibility
+# Ajazz Linux file and binding compatibility
 
-Vela implements these layouts independently from `CLONE_SPEC.md`. Tests use
+Ajazz Linux implements these layouts independently from `CLONE_SPEC.md`. Tests use
 constructed fixtures and the simulated transport. Compatibility with an actual
 vendor application or physical macro playback has not been tested.
 

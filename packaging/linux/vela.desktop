@@ -1,11 +1,11 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Vela Mouse Studio
-Comment=Configure compatible AJ199 mouse settings
+Name=Ajazz Linux
+Comment=Unofficial settings for the AJAZZ AJ199 mouse: DPI, buttons, macros and scroll light
 Exec=vela
 Icon=vela
 Terminal=false
 Categories=Settings;HardwareSettings;
-Keywords=mouse;DPI;AJ199;macro;
+Keywords=ajazz;aj199;mouse;gaming;DPI;macro;rgb;light;driver;
 StartupNotify=true

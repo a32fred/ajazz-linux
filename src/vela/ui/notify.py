@@ -12,5 +12,5 @@ class Notifier:
         if not self.enabled or QGuiApplication.platformName() == 'offscreen':
             return False
         return bool(QProcess.startDetached('notify-send', [
-            '--app-name', 'Vela Mouse Studio', '--icon', 'input-mouse', '--expire-time', str(timeout_ms),
+            '--app-name', 'Ajazz Linux', '--icon', 'input-mouse', '--expire-time', str(timeout_ms),
             f'--hint=string:x-canonical-private-synchronous:{key}', title, body]))

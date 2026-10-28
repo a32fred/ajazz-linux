@@ -1,12 +1,14 @@
-# Vela Mouse Studio
+# Ajazz Linux
 
 **[Portugu?s: instala??o passo a passo](README.pt-BR.md)**
 
 <img src="src/vela/assets/vela.svg" alt="Vela sail logo" width="72">
 
-[![Linux CI](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml/badge.svg)](https://github.com/a32fred/vela-mouse-studio/actions/workflows/tests.yml)
+[![Linux CI](https://github.com/a32fred/ajazz-linux/actions/workflows/tests.yml/badge.svg)](https://github.com/a32fred/ajazz-linux/actions/workflows/tests.yml)
 
-**Independent AJ199 configuration utility - early development preview.**
+**Unofficial Linux settings app for the AJAZZ AJ199 mouse (DPI, buttons, macros, scroll wheel light) - early development preview.**
+
+A native alternative to the Windows-only AJAZZ driver, for people searching for an *AJAZZ AJ199 Linux driver*, *AJ199 DPI settings on Linux* or *AJAZZ mouse configuration on Fedora, Ubuntu or Arch*. Not affiliated with or endorsed by AJAZZ.
 
 [Linux setup](#install-and-launch) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Changelog](CHANGELOG.md) | [MIT license](LICENSE)
 
@@ -14,9 +16,9 @@ An independent, native Qt Widgets controller for the AJ199 mouse, with original 
 
 Python 3.10+ is supported by the source. Install a Python version and architecture for which PySide6 and HIDAPI provide wheels. Development verification used Windows, Python 3.14 and PySide6 6.12; Headless Ubuntu 24.04 CI has passed with Python 3.10 and 3.13. Live desktop sessions, USB permissions and physical mouse writes have **not** been validated. Demo mode uses an in-memory transport with the same report codecs and service as real connections.
 
-![Vela demo rendered on Ubuntu 24.04 CI, showing sensitivity controls](docs/images/vela-linux-demo.png)
+![Ajazz Linux demo rendered on Ubuntu 24.04 CI, showing sensitivity controls](docs/images/vela-linux-demo.png)
 
-The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical device. **97 tests passed** on Windows and on each Linux CI job (Python 3.10 and 3.13), including builds and demo rendering. See [the passing Linux run](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815) and [validation evidence](docs/VALIDATION.md).
+The screenshot is an Ubuntu 24.04 offscreen Qt demo render, without a physical device. **97 tests passed** on Windows and on each Linux CI job (Python 3.10 and 3.13), including builds and demo rendering. See [the passing Linux run](https://github.com/a32fred/ajazz-linux/actions/runs/40155183815) and [validation evidence](docs/VALIDATION.md).
 
 ## Install and launch
 
@@ -34,12 +36,12 @@ sudo dnf install git python3 python3-pip \
   xcb-util-cursor xcb-util-wm xcb-util-keysyms
 ```
 
-**2. Download and install Vela.** This creates a `vela-mouse-studio` folder inside your home directory. Keep that folder: the launcher uses the Python environment stored inside it. The dependency download can take a few minutes.
+**2. Download and install Ajazz Linux.** This creates a `ajazz-linux` folder inside your home directory. Keep that folder: the launcher uses the Python environment stored inside it. The dependency download can take a few minutes.
 
 ```sh
 cd "$HOME"
-git clone https://github.com/a32fred/vela-mouse-studio.git
-cd vela-mouse-studio
+git clone https://github.com/a32fred/ajazz-linux.git
+cd ajazz-linux
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e .
@@ -47,16 +49,16 @@ python3 -m venv .venv
 
 If you already downloaded the repository, skip `git clone` and enter its existing folder instead. If a command fails, stop there and read [Troubleshooting](#installation-troubleshooting); do not continue with an incomplete installation.
 
-**3. Open the demonstration first.** No mouse connection or USB permission setup is needed. A Vela window with a **DEMO MODE** badge should open.
+**3. Open the demonstration first.** No mouse connection or USB permission setup is needed. A Ajazz Linux window with a **DEMO MODE** badge should open.
 
 ```sh
-sh "$HOME/vela-mouse-studio/run-vela" --demo
+sh "$HOME/ajazz-linux/run-vela" --demo
 ```
 
 **4. Use your actual mouse.** Close the demo. Install the supplied USB access rule once:
 
 ```sh
-cd "$HOME/vela-mouse-studio"
+cd "$HOME/ajazz-linux"
 sudo install -m 644 packaging/linux/70-vela.rules /etc/udev/rules.d/70-vela.rules
 sudo udevadm control --reload-rules
 ```
@@ -64,17 +66,17 @@ sudo udevadm control --reload-rules
 Unplug and reconnect the mouse's USB cable. Then open real mode:
 
 ```sh
-sh "$HOME/vela-mouse-studio/run-vela"
+sh "$HOME/ajazz-linux/run-vela"
 ```
 
-Inside Vela, click **Scan**, select the AJ199, then click **Read mouse**. These actions read settings; only **Apply to mouse** writes your changes. Run Vela as your normal desktop user, not with `sudo`. Writes were checked by hand on a single AJ199 (USB cable) only, so treat them as experimental; see [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
+Inside Ajazz Linux, click **Scan**, select the AJ199, then click **Read mouse**. These actions read settings; only **Apply to mouse** writes your changes. Run Ajazz Linux as your normal desktop user, not with `sudo`. Writes were checked by hand on a single AJ199 (USB cable) only, so treat them as experimental; see [hardware findings](docs/reference/HARDWARE_FINDINGS.md).
 
-**Open it again later:** use the same `sh "$HOME/vela-mouse-studio/run-vela"` command from any terminal. For an application-menu shortcut, follow [Desktop shortcut](#desktop-shortcut-optional). For demo mode, add `--demo`.
+**Open it again later:** use the same `sh "$HOME/ajazz-linux/run-vela"` command from any terminal. For an application-menu shortcut, follow [Desktop shortcut](#desktop-shortcut-optional). For demo mode, add `--demo`.
 
-**Update an existing installation:** close Vela, then run:
+**Update an existing installation:** close Ajazz Linux, then run:
 
 ```sh
-cd "$HOME/vela-mouse-studio"
+cd "$HOME/ajazz-linux"
 git pull --ff-only
 .venv/bin/python -m pip install -e .
 ```
@@ -98,7 +100,7 @@ py -3 -m venv .venv
 | What you see | What to do |
 |---|---|
 | `git: command not found`, `python3: command not found`, or no `pip` | Complete step 1 before continuing. |
-| `destination path ... already exists` | Use `cd "$HOME/vela-mouse-studio"`; do not clone again into the same location. |
+| `destination path ... already exists` | Use `cd "$HOME/ajazz-linux"`; do not clone again into the same location. |
 | `No matching distribution found` / unsupported Python or architecture | Run `python3 --version` and check that PySide6/HIDAPI support that interpreter/architecture. Report the complete error using the bug template; do not replace the system Python. |
 | Missing `.venv/bin/python`, `No module named vela`, or launcher asks you to install first | Complete step 2 successfully, in the repository folder. |
 | Qt reports `xcb` / a missing shared library | Complete the Fedora runtime package installation in step 1. If it still fails, include the exact missing library in a bug report. |
@@ -145,12 +147,12 @@ The CLI prints JSON and exits 0 on success, 1 on connection/read failure, 2 on a
 
 ## Linux access and desktop integration
 
-The optional [udev rules](packaging/linux/70-vela.rules) grant active-seat access only to HID devices `25a7:fa7b` and `25a7:fa7c`. Review before installing. These commands require administrator privileges and are **not** run by Vela:
+The optional [udev rules](packaging/linux/70-vela.rules) grant active-seat access only to HID devices `25a7:fa7b` and `25a7:fa7c`. Review before installing. These commands require administrator privileges and are **not** run by Ajazz Linux:
 
 ```sh
 sudo install -m 644 packaging/linux/70-vela.rules /etc/udev/rules.d/70-vela.rules
 sudo udevadm control --reload-rules
-# Replug the mouse, then run Vela as your normal desktop user.
+# Replug the mouse, then run Ajazz Linux as your normal desktop user.
 ```
 
 On machines without an active logind/seat session, your administrator may need a distro-appropriate group policy. Do not run the GUI as root to work around permissions. Access failure is reported by Scan/Read mouse.
@@ -180,14 +182,14 @@ QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -v
 python -m build
 ```
 
-Tests use fake HID APIs and the simulator; they do not enumerate, open or write physical devices. Linux CI has [passed on Ubuntu 24.04 with Python 3.10 and 3.13](https://github.com/a32fred/vela-mouse-studio/actions/runs/40155183815), including offscreen widget tests, builds, demo CLI and rendering. Protocol correctness is checked with specification-derived vectors and readback simulation. Actual hardware writes/playback, Linux permissions and live desktop behavior need separate hands-on validation.
+Tests use fake HID APIs and the simulator; they do not enumerate, open or write physical devices. Linux CI has [passed on Ubuntu 24.04 with Python 3.10 and 3.13](https://github.com/a32fred/ajazz-linux/actions/runs/40155183815), including offscreen widget tests, builds, demo CLI and rendering. Protocol correctness is checked with specification-derived vectors and readback simulation. Actual hardware writes/playback, Linux permissions and live desktop behavior need separate hands-on validation.
 
-All GUI service work runs on one queued worker; shutdown waits for the current transaction, closes its handle and ends the thread without blocking the GUI. HIDAPI `send_feature_report` has no configurable OS timeout. An indefinitely stalled native driver call cannot be safely interrupted; shutdown may wait indefinitely in that case. Vela never force-terminates a thread.
+All GUI service work runs on one queued worker; shutdown waits for the current transaction, closes its handle and ends the thread without blocking the GUI. HIDAPI `send_feature_report` has no configurable OS timeout. An indefinitely stalled native driver call cannot be safely interrupted; shutdown may wait indefinitely in that case. Ajazz Linux never force-terminates a thread.
 
 Firmware updates, factory reset, ambiguous sensor/sleep features and Windows host-pointer settings are unavailable. Writes were tested by hand on one AJ199 (USB cable): DPI, polling and debounce as reported by the author, and the scroll wheel light, which was written, read back and restored with a backup taken first. Buttons, macros and the wireless receiver were not validated on hardware.
 
 ## Provenance and licenses
 
-Vela's new code and original logo are MIT-licensed; see [LICENSE](LICENSE). The first version was written from this repository's behavioral specification without inspecting vendor executables. Later additions (the scroll wheel light register and its brightness table, and the layout of the reports the mouse sends by itself) were worked out by reading the vendor's Windows driver statically, for interoperability with hardware the author owns, and then checked on a physical AJ199. No vendor code, binary, image, font or text is included in this repository: the notes under `docs/reference` describe protocol facts and addresses only. The original sail logo is included locally at `src/vela/assets/vela.svg`; no hosted design service or remote asset is required at runtime.
+Ajazz Linux's new code and original logo are MIT-licensed; see [LICENSE](LICENSE). The first version was written from this repository's behavioral specification without inspecting vendor executables. Later additions (the scroll wheel light register and its brightness table, and the layout of the reports the mouse sends by itself) were worked out by reading the vendor's Windows driver statically, for interoperability with hardware the author owns, and then checked on a physical AJ199. No vendor code, binary, image, font or text is included in this repository: the notes under `docs/reference` describe protocol facts and addresses only. The original sail logo is included locally at `src/vela/assets/vela.svg`; no hosted design service or remote asset is required at runtime.
 
-Dependencies retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Vela is an independent compatibility utility, with no claim of manufacturer affiliation.
+Dependencies retain their own licenses. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Ajazz Linux is an independent compatibility utility, with no claim of manufacturer affiliation.

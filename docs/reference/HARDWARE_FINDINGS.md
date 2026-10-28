@@ -1,6 +1,6 @@
 # Hardware findings: AJAZZ AJ199 (USB cable, PID 0xFA7B)
 
-Observed on one physical unit on 2026-10-28, using the Vela transport (feature report 8, 17 bytes) and static reading of the vendor's Windows driver for interpretation. Everything marked **observed** was read from, or written to and read back from, that unit. **Inferred** means interpretation without a direct test. Other units, firmware revisions and the wireless receiver (PID 0xFA7C) were not tested.
+Observed on one physical unit on 2026-10-28, using the Ajazz Linux transport (feature report 8, 17 bytes) and static reading of the vendor's Windows driver for interpretation. Everything marked **observed** was read from, or written to and read back from, that unit. **Inferred** means interpretation without a direct test. Other units, firmware revisions and the wireless receiver (PID 0xFA7C) were not tested.
 
 Register layout used below: a value is stored as a pair `(value, 0x55 - value)`; a color is `(r, g, b, 0x55 - r - g - b)`; all arithmetic is modulo 256.
 
@@ -61,7 +61,7 @@ The mode byte read `05` instead of `01` once, after a long session in which it h
 | `0x2C..0x4B` | 8 stage colors | |
 | `0x54..0x5D` | secondary light | valid record: color, mode 0 (off), brightness level 5, parameter 3. The vendor config hides this light for this model. No physical effect was tested. |
 | `0x60..0x9F` | key matrix, 16 entries | see below |
-| `0xA0..0xA6` | main light block | the vendor config sets `ShowMainEffect=0` for this model; the Vela Lighting page used to edit this block and had no visible effect |
+| `0xA0..0xA6` | main light block | the vendor config sets `ShowMainEffect=0` for this model; the Ajazz Linux Lighting page used to edit this block and had no visible effect |
 | `0xA7` | `00 55` | unknown, never written by this project |
 | `0xA9` debounce, `0xAB` light on, `0xAD` idle (x10 s), `0xAF` angle snapping, `0xB1` ripple, `0xB3` light off while moving | | known |
 | `0xB5`, `0xB7` | `ff ff` (uninitialized) | the firmware **accepts and stores** writes to both (tested with `06 4f` and `01 54`, then restored to `ff ff`). Whether they have a physical effect is unknown; the vendor driver treats them as auto-sleep and a sensor option (Motion Sync candidate). |

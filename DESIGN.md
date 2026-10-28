@@ -1,4 +1,4 @@
-# Vela Mouse Studio: design direction
+# Ajazz Linux: design direction
 
 Desktop configuration utility for AJAZZ AJ199 owners on Linux. Ink-dark instrument surfaces (#0F1417 canvas, #171E22 panels), one sail-teal accent (#3CCFB0, taken from the Vela mark) used only for the active page, active DPI stage, the DPI readout and the primary Apply action. System typography, small radii (4 to 6 px), no shadows, no glow, no decorative motion.
 

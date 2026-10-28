@@ -12,7 +12,7 @@ Expected behavior, actual behavior and minimal reproduction steps:
 
 ### Environment
 
-- Vela version/commit:
+- Ajazz Linux version/commit:
 - OS/distro/version; X11/Wayland if applicable:
 - Python and PySide6/Qt versions:
 - Demo mode or real device:
