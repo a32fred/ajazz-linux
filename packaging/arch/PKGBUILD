@@ -9,7 +9,7 @@ url='https://github.com/a32fred/ajazz-linux'
 license=(MIT)
 makedepends=(python-build python-installer python-setuptools python-wheel)
 source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')  # replace with the real checksum before publishing to the AUR
+sha256sums=('7aeaedf38dde236d3448a4c0b8da4046b04ea2c915d9f02f12edddc3b08fafb9')
 
 build() {
   cd "$pkgbase-$pkgver"
