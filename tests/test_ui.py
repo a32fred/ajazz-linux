@@ -1,4 +1,5 @@
 """User workflows against native widgets and the report-level simulator."""
+import atexit
 import copy
 import gc
 import os
@@ -6,6 +7,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from pathlib import Path
 import tempfile
 import threading
+import sys
 import time
 import unittest
 from unittest.mock import patch
@@ -24,6 +26,22 @@ from vela.ui.window import MainWindow
 
 
 APP = QApplication.instance() or QApplication([])
+
+if sys.version_info < (3, 12):
+    # On Python 3.10 and 3.11, with every PySide6 release tried (6.8 to 6.12), a process that has created
+    # three or more MainWindow fixtures aborts while the interpreter finalizes, after every test has
+    # passed (heap corruption in type_clear). The application itself is not affected: it exits cleanly
+    # on those versions. Report the real result and skip the faulty finalization instead.
+    _run = unittest.TextTestRunner.run
+
+    def _run_and_exit_cleanly(self, test):
+        result = _run(self, test)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        atexit.register(os._exit, 0 if result.wasSuccessful() else 1)
+        return result
+
+    unittest.TextTestRunner.run = _run_and_exit_cleanly
 
 
 def until(predicate, timeout=5000):
